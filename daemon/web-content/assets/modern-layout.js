@@ -576,19 +576,95 @@
       }
     }
 
-    // 3. Power Actions
+    // 3. Power Actions Grid Layout
     if (panePower) {
+      const activeDev = window.c && window.c.hasActiveDevice && window.c.hasActiveDevice() ? window.c.getActiveDevice() : null;
+      const shutdownCmds = activeDev?.shutdown_commands || [];
+      const sleepCmds = activeDev?.sleep_commands || [];
+      const wakeCmds = activeDev?.wake_commands || [];
+
+      function hasCmd(cmdList, type) {
+        return cmdList.some(c => typeof c === 'object' && c !== null && type in c);
+      }
+
+      function createPowerSection(title, desc, cmdList, setCmdName) {
+        const isSaveProfile = hasCmd(cmdList, 'SaveProfile');
+        const isSaveMicProfile = hasCmd(cmdList, 'SaveMicProfile');
+        const isLoadProfile = hasCmd(cmdList, 'LoadProfile');
+        const isLoadMicProfile = hasCmd(cmdList, 'LoadMicProfile');
+
+        return `
+          <div class="power-section-card">
+            <div class="power-section-title">${title}</div>
+            <div class="power-section-desc">${desc}</div>
+            <div class="power-grid-2x2">
+              <label class="power-grid-item">
+                <input type="checkbox" data-setcmd="${setCmdName}" data-type="SaveProfile" ${isSaveProfile ? 'checked' : ''}>
+                <span>Save Profile</span>
+              </label>
+              <label class="power-grid-item">
+                <input type="checkbox" data-setcmd="${setCmdName}" data-type="SaveMicProfile" ${isSaveMicProfile ? 'checked' : ''}>
+                <span>Save Mic Profile</span>
+              </label>
+              <label class="power-grid-item">
+                <input type="checkbox" data-setcmd="${setCmdName}" data-type="LoadProfile" ${isLoadProfile ? 'checked' : ''}>
+                <span>Load Profile</span>
+              </label>
+              <label class="power-grid-item">
+                <input type="checkbox" data-setcmd="${setCmdName}" data-type="LoadMicProfile" ${isLoadMicProfile ? 'checked' : ''}>
+                <span>Load Mic Profile</span>
+              </label>
+            </div>
+          </div>
+        `;
+      }
+
       panePower.innerHTML = `
-        <div class="modern-settings-list">
-          <div class="modern-setting-item">
-            <div class="modern-setting-info">
-              <div class="modern-setting-label">Shutdown GoXLR Utility</div>
-              <div class="modern-setting-desc">Terminates daemon background services and closes communication</div>
+        <div class="power-actions-wrapper">
+          ${createPowerSection('Shutdown Actions', 'Actions executed when shutting down', shutdownCmds, 'SetShutdownCommands')}
+          ${createPowerSection('Sleep Actions', 'Actions executed when system enters sleep', sleepCmds, 'SetSleepCommands')}
+          ${createPowerSection('Wake Actions', 'Actions executed when system wakes up', wakeCmds, 'SetWakeCommands')}
+
+          <div class="power-section-card daemon-shutdown-card">
+            <div class="power-section-info">
+              <div class="power-section-title">Shutdown GoXLR Utility</div>
+              <div class="power-section-desc">Terminates background daemon service and closes communication</div>
             </div>
             <button class="modern-danger-btn" id="btn-shutdown-daemon">Shutdown Utility</button>
           </div>
         </div>
       `;
+
+      // Wire checkboxes
+      panePower.querySelectorAll('.power-grid-item input').forEach(input => {
+        input.addEventListener('change', () => {
+          const setCmdName = input.getAttribute('data-setcmd');
+          const sectionGrid = input.closest('.power-grid-2x2');
+          const checkboxes = sectionGrid.querySelectorAll('input');
+          const selectedCmds = [];
+
+          checkboxes.forEach(cb => {
+            if (cb.checked) {
+              const type = cb.getAttribute('data-type');
+              if (type === 'SaveProfile') selectedCmds.push({ SaveProfile: [] });
+              else if (type === 'SaveMicProfile') selectedCmds.push({ SaveMicProfile: [] });
+              else if (type === 'LoadProfile') {
+                const curProf = activeDev ? activeDev.profile_name : 'Default';
+                selectedCmds.push({ LoadProfile: [curProf, true] });
+              } else if (type === 'LoadMicProfile') {
+                const curMicProf = activeDev ? activeDev.mic_profile_name : 'Default Mic';
+                selectedCmds.push({ LoadMicProfile: [curMicProf, true] });
+              }
+            }
+          });
+
+          if (window.$ && window.c && window.c.hasActiveDevice && window.c.hasActiveDevice()) {
+            const payload = {};
+            payload[setCmdName] = selectedCmds;
+            window.$.send_command(window.c.getActiveSerial(), payload);
+          }
+        });
+      });
 
       const shutdownBtn = panePower.querySelector('#btn-shutdown-daemon');
       if (shutdownBtn) shutdownBtn.addEventListener('click', () => {
@@ -601,33 +677,27 @@
   }
 
   function setupSystemSettingsObserver() {
-    function processSystemButtons() {
-      // Hide separate power & device buttons in System tab
-      const shutdownBtn = document.getElementById('shutdown_button');
-      const devBtn = document.getElementById('device_settings_button');
-      if (shutdownBtn && shutdownBtn.style.display !== 'none') shutdownBtn.style.display = 'none';
-      if (devBtn && devBtn.style.display !== 'none') devBtn.style.display = 'none';
-
-      // Re-title settings_button to "Settings"
-      const settingsBtn = document.getElementById('settings_button');
-      if (settingsBtn && !settingsBtn._unifiedWired) {
-        settingsBtn._unifiedWired = true;
-        const filler = settingsBtn.querySelector('.filler');
-        if (filler) filler.textContent = 'Settings';
-        settingsBtn.title = 'System Settings';
-
-        // Override click to open unified modal
-        settingsBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          openUnifiedSettings();
-        }, true);
-      }
+    function removeSystemTab() {
+      // Hide system tab button from main horizontal navigation
+      const navButtons = document.querySelectorAll('.tab button');
+      navButtons.forEach(btn => {
+        const text = (btn.textContent || '').trim().toLowerCase();
+        if (text.includes('system')) {
+          if (btn.style.display !== 'none') {
+            btn.style.setProperty('display', 'none', 'important');
+          }
+          // If System tab happened to be active, switch to Mixer tab
+          if (btn.classList.contains('active')) {
+            const mixerBtn = Array.from(navButtons).find(b => (b.textContent || '').trim().toLowerCase().includes('mixer'));
+            if (mixerBtn) mixerBtn.click();
+          }
+        }
+      });
     }
 
-    const obs = new MutationObserver(processSystemButtons);
+    const obs = new MutationObserver(removeSystemTab);
     obs.observe(document.body, { childList: true, subtree: true });
-    processSystemButtons();
+    removeSystemTab();
   }
 
   function enforceDefaultWindowSize() {
