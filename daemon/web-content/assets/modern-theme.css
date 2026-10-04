@@ -729,13 +729,12 @@ input[type=range]::-webkit-slider-thumb {
    Mic Tab: Profiles, Buttons, Expander & Quick Gain
    ========================================================================== */
 
-/* Mic Profiles Card */
-.profile-border[data-v-a1adf6fe] {
-  background: var(--bg-card) !important;
-  border: 1px solid var(--border-subtle) !important;
-  border-radius: var(--radius-lg) !important;
-  box-shadow: var(--shadow-card) !important;
-  overflow: hidden !important;
+/* Mic Profiles Card - Moved to top header bar */
+.profile-border[data-v-a1adf6fe],
+.profile-border,
+div:has(> .profile-border),
+div:has(> [data-v-a1adf6fe]) {
+  display: none !important;
 }
 .title[data-v-a1adf6fe] {
   background: var(--bg-surface) !important;
