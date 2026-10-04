@@ -497,6 +497,13 @@ pub async fn spawn_usb_handler(
                                 change_found = true;
                                 let _ = sender.send(Ok(()));
                             }
+                            DaemonCommand::SetSaveWindowSize(value) => {
+                                settings.set_save_window_size(value).await;
+                                settings.save().await;
+
+                                change_found = true;
+                                let _ = sender.send(Ok(()));
+                            }
                         }
                     },
 
@@ -694,6 +701,7 @@ async fn get_daemon_status(
             platform: env::consts::OS.to_string(),
             handle_macos_aggregates: settings.get_macos_handle_aggregates().await,
             shutdown_leds_off: settings.get_shutdown_leds_off().await,
+            save_window_size: settings.get_save_window_size().await,
         },
         paths: Paths {
             profile_directory: settings.get_profile_directory().await,

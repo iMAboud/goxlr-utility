@@ -11,6 +11,8 @@ use windres::Build;
 include!("src/cli.rs");
 
 fn main() -> Result<(), Error> {
+    println!("cargo:rerun-if-changed=web-content");
+    println!("cargo:rerun-if-changed=resources/goxlr-daemon.rc");
     #[cfg(target_os = "windows")]
     {
         Build::new().compile("resources/goxlr-daemon.rc").unwrap();

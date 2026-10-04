@@ -133,6 +133,7 @@ pub enum DaemonCommand {
 
     HandleMacOSAggregates(bool),
     SetShutdownLedsOff(bool),
+    SetSaveWindowSize(bool),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

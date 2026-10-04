@@ -76,6 +76,7 @@ impl SettingsHandle {
                 firmware_source: None,
                 devices: Some(Default::default()),
                 sample_gain: Some(Default::default()),
+                save_window_size: Some(false),
             }
         });
 
@@ -153,6 +154,10 @@ impl SettingsHandle {
 
         if settings.macos_handle_aggregates.is_none() {
             settings.macos_handle_aggregates = Some(true);
+        }
+
+        if settings.save_window_size.is_none() {
+            settings.save_window_size = Some(false);
         }
 
         if settings.devices.is_none() {
@@ -250,6 +255,16 @@ impl SettingsHandle {
     pub async fn set_shutdown_leds_off(&self, enabled: bool) {
         let mut settings = self.settings.write().await;
         settings.shutdown_leds_off = Some(enabled);
+    }
+
+    pub async fn get_save_window_size(&self) -> bool {
+        let settings = self.settings.read().await;
+        settings.save_window_size.unwrap_or(false)
+    }
+
+    pub async fn set_save_window_size(&self, enabled: bool) {
+        let mut settings = self.settings.write().await;
+        settings.save_window_size = Some(enabled);
     }
 
     pub async fn set_macos_handle_aggregates(&self, enabled: bool) {
@@ -736,6 +751,7 @@ pub struct Settings {
     firmware_source: Option<FirmwareSource>,
     devices: Option<HashMap<String, DeviceSettings>>,
     sample_gain: Option<HashMap<String, u8>>,
+    save_window_size: Option<bool>,
 }
 
 impl Settings {

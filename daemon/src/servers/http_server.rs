@@ -37,6 +37,7 @@ use goxlr_types::FaderName;
 use crate::primary_worker::{DeviceCommand, DeviceSender};
 use crate::servers::server_packet::handle_packet;
 
+// Embedded static web content assets (modern UI build v2)
 const WEB_CONTENT: Dir = include_dir!("./daemon/web-content/");
 
 struct AppData {

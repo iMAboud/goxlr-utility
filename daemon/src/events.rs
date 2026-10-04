@@ -122,6 +122,40 @@ pub async fn spawn_event_handler(
                         let activate = state.settings_handle.get_activate().await;
                         let url = get_util_url(&state);
 
+                        // If saving window size is disabled, enforce default window dimensions (1269 x 824)
+                        if !state.settings_handle.get_save_window_size().await {
+                            if let Some(base_dirs) = directories::BaseDirs::new() {
+                                let window_state_path = base_dirs.config_dir().join("com.frostycoolslug.goxlr-utility-ui").join(".window-state.json");
+                                if window_state_path.exists() {
+                                    if let Ok(content) = std::fs::read_to_string(&window_state_path) {
+                                        if let Ok(mut json) = serde_json::from_str::<serde_json::Value>(&content) {
+                                            if let Some(main) = json.get_mut("main") {
+                                                main["width"] = serde_json::json!(1269);
+                                                main["height"] = serde_json::json!(824);
+                                                main["maximized"] = serde_json::json!(false);
+                                                let _ = std::fs::write(&window_state_path, serde_json::to_string_pretty(&json).unwrap_or_default());
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    if let Some(parent) = window_state_path.parent() {
+                                        let _ = std::fs::create_dir_all(parent);
+                                    }
+                                    let default_state = serde_json::json!({
+                                        "main": {
+                                            "width": 1269,
+                                            "height": 824,
+                                            "maximized": false,
+                                            "visible": true,
+                                            "decorated": true,
+                                            "fullscreen": false
+                                        }
+                                    });
+                                    let _ = std::fs::write(&window_state_path, serde_json::to_string_pretty(&default_state).unwrap_or_default());
+                                }
+                            }
+                        }
+
                         // Use the temp directory as the runtime for any launched apps..
                         let tmp_dir = std::env::temp_dir();
 

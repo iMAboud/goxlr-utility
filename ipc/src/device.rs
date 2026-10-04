@@ -42,6 +42,7 @@ pub struct DaemonConfig {
     pub platform: String,
     pub handle_macos_aggregates: bool,
     pub shutdown_leds_off: bool,
+    pub save_window_size: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
