@@ -41,6 +41,7 @@ pub struct DaemonConfig {
     pub open_ui_on_launch: bool,
     pub platform: String,
     pub handle_macos_aggregates: bool,
+    pub shutdown_leds_off: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

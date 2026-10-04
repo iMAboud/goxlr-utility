@@ -132,6 +132,7 @@ pub enum DaemonCommand {
     ApplySampleChange,
 
     HandleMacOSAggregates(bool),
+    SetShutdownLedsOff(bool),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
