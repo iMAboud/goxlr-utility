@@ -38,6 +38,22 @@
             </svg>
           </button>
         </div>
+        <div class="modern-profile-bar" id="modern-mic-profile-bar">
+          <span class="profile-label">Mic Profile:</span>
+          <select id="modern-mic-profile-select" class="modern-select" title="Switch active mic profile"></select>
+          <button class="modern-mini-btn" id="modern-mic-profile-save" title="Save current mic profile">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+          </button>
+          <button class="modern-mini-btn" id="modern-mic-profile-folder" title="Open Mic Profiles Folder">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </button>
+        </div>
       </div>
       <div class="modern-header-right">
         <span class="modern-version-tag" id="modern-version-tag">GoXLR Utility</span>
@@ -97,6 +113,9 @@
     // 6. Setup Quick Mic Gain Slider outside popup
     setupMicGainObserver();
 
+    // Hide old Mic Profiles panel from body
+    setupMicProfileObserver();
+
     // 7. Observe System Tab to Unify Settings Buttons
     setupSystemSettingsObserver();
 
@@ -116,11 +135,16 @@
     });
   }
 
-  // Populate & Sync Profile Dropdown and Action Buttons
+  // Populate & Sync Profile & Mic Profile Dropdowns and Action Buttons
   function initProfileControls() {
     const select = document.getElementById('modern-profile-select');
     const saveBtn = document.getElementById('modern-profile-save');
     const folderBtn = document.getElementById('modern-profile-folder');
+
+    const micSelect = document.getElementById('modern-mic-profile-select');
+    const micSaveBtn = document.getElementById('modern-mic-profile-save');
+    const micFolderBtn = document.getElementById('modern-mic-profile-folder');
+
     const statusDot = document.querySelector('.modern-status-dot');
     const statusText = document.getElementById('modern-status-text');
 
@@ -161,6 +185,31 @@
         if (select && active && select.value !== active) {
           select.value = active;
         }
+
+        // Mic Profiles
+        let micFiles = (window.c.getMicProfileFiles ? window.c.getMicProfileFiles() : []) || [];
+        if (!Array.isArray(micFiles)) {
+          micFiles = [];
+        }
+        const activeMic = activeDev ? activeDev.mic_profile_name : '';
+
+        const micCacheKey = micFiles.join('|') + '::' + activeMic;
+        if (micSelect && (micSelect._cacheKey !== micCacheKey || micSelect.options.length !== micFiles.length)) {
+          micSelect._cacheKey = micCacheKey;
+          micSelect.innerHTML = '';
+          micFiles.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f;
+            opt.textContent = f;
+            if (f === activeMic) {
+              opt.selected = true;
+            }
+            micSelect.appendChild(opt);
+          });
+        }
+        if (micSelect && activeMic && micSelect.value !== activeMic) {
+          micSelect.value = activeMic;
+        }
       } catch (err) {
         console.warn('Profile refresh error:', err);
       }
@@ -189,6 +238,33 @@
       folderBtn.addEventListener('click', () => {
         if (window.$ && window.$.open_path) {
           window.$.open_path('Profiles');
+        }
+      });
+    }
+
+    if (micSelect) {
+      micSelect.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (val && window.$ && window.c && window.c.hasActiveDevice && window.c.hasActiveDevice()) {
+          window.$.send_command(window.c.getActiveSerial(), { LoadMicProfile: [val, true] });
+        }
+      });
+    }
+
+    if (micSaveBtn) {
+      micSaveBtn.addEventListener('click', () => {
+        if (window.$ && window.c && window.c.hasActiveDevice && window.c.hasActiveDevice()) {
+          window.$.send_command(window.c.getActiveSerial(), { SaveMicProfile: [] });
+          micSaveBtn.classList.add('save-success');
+          setTimeout(() => micSaveBtn.classList.remove('save-success'), 1200);
+        }
+      });
+    }
+
+    if (micFolderBtn) {
+      micFolderBtn.addEventListener('click', () => {
+        if (window.$ && window.$.open_path) {
+          window.$.open_path('MicProfiles');
         }
       });
     }
@@ -500,19 +576,95 @@
       }
     }
 
-    // 3. Power Actions
+    // 3. Power Actions Grid Layout
     if (panePower) {
+      const activeDev = window.c && window.c.hasActiveDevice && window.c.hasActiveDevice() ? window.c.getActiveDevice() : null;
+      const shutdownCmds = activeDev?.shutdown_commands || [];
+      const sleepCmds = activeDev?.sleep_commands || [];
+      const wakeCmds = activeDev?.wake_commands || [];
+
+      function hasCmd(cmdList, type) {
+        return cmdList.some(c => typeof c === 'object' && c !== null && type in c);
+      }
+
+      function createPowerSection(title, desc, cmdList, setCmdName) {
+        const isSaveProfile = hasCmd(cmdList, 'SaveProfile');
+        const isSaveMicProfile = hasCmd(cmdList, 'SaveMicProfile');
+        const isLoadProfile = hasCmd(cmdList, 'LoadProfile');
+        const isLoadMicProfile = hasCmd(cmdList, 'LoadMicProfile');
+
+        return `
+          <div class="power-section-card">
+            <div class="power-section-title">${title}</div>
+            <div class="power-section-desc">${desc}</div>
+            <div class="power-grid-2x2">
+              <label class="power-grid-item">
+                <input type="checkbox" data-setcmd="${setCmdName}" data-type="SaveProfile" ${isSaveProfile ? 'checked' : ''}>
+                <span>Save Profile</span>
+              </label>
+              <label class="power-grid-item">
+                <input type="checkbox" data-setcmd="${setCmdName}" data-type="SaveMicProfile" ${isSaveMicProfile ? 'checked' : ''}>
+                <span>Save Mic Profile</span>
+              </label>
+              <label class="power-grid-item">
+                <input type="checkbox" data-setcmd="${setCmdName}" data-type="LoadProfile" ${isLoadProfile ? 'checked' : ''}>
+                <span>Load Profile</span>
+              </label>
+              <label class="power-grid-item">
+                <input type="checkbox" data-setcmd="${setCmdName}" data-type="LoadMicProfile" ${isLoadMicProfile ? 'checked' : ''}>
+                <span>Load Mic Profile</span>
+              </label>
+            </div>
+          </div>
+        `;
+      }
+
       panePower.innerHTML = `
-        <div class="modern-settings-list">
-          <div class="modern-setting-item">
-            <div class="modern-setting-info">
-              <div class="modern-setting-label">Shutdown GoXLR Utility</div>
-              <div class="modern-setting-desc">Terminates daemon background services and closes communication</div>
+        <div class="power-actions-wrapper">
+          ${createPowerSection('Shutdown Actions', 'Actions executed when shutting down', shutdownCmds, 'SetShutdownCommands')}
+          ${createPowerSection('Sleep Actions', 'Actions executed when system enters sleep', sleepCmds, 'SetSleepCommands')}
+          ${createPowerSection('Wake Actions', 'Actions executed when system wakes up', wakeCmds, 'SetWakeCommands')}
+
+          <div class="power-section-card daemon-shutdown-card">
+            <div class="power-section-info">
+              <div class="power-section-title">Shutdown GoXLR Utility</div>
+              <div class="power-section-desc">Terminates background daemon service and closes communication</div>
             </div>
             <button class="modern-danger-btn" id="btn-shutdown-daemon">Shutdown Utility</button>
           </div>
         </div>
       `;
+
+      // Wire checkboxes
+      panePower.querySelectorAll('.power-grid-item input').forEach(input => {
+        input.addEventListener('change', () => {
+          const setCmdName = input.getAttribute('data-setcmd');
+          const sectionGrid = input.closest('.power-grid-2x2');
+          const checkboxes = sectionGrid.querySelectorAll('input');
+          const selectedCmds = [];
+
+          checkboxes.forEach(cb => {
+            if (cb.checked) {
+              const type = cb.getAttribute('data-type');
+              if (type === 'SaveProfile') selectedCmds.push({ SaveProfile: [] });
+              else if (type === 'SaveMicProfile') selectedCmds.push({ SaveMicProfile: [] });
+              else if (type === 'LoadProfile') {
+                const curProf = activeDev ? activeDev.profile_name : 'Default';
+                selectedCmds.push({ LoadProfile: [curProf, true] });
+              } else if (type === 'LoadMicProfile') {
+                const curMicProf = activeDev ? activeDev.mic_profile_name : 'Default Mic';
+                selectedCmds.push({ LoadMicProfile: [curMicProf, true] });
+              }
+            }
+          });
+
+          if (window.$ && window.c && window.c.hasActiveDevice && window.c.hasActiveDevice()) {
+            const payload = {};
+            payload[setCmdName] = selectedCmds;
+            window.$.send_command(window.c.getActiveSerial(), payload);
+          }
+        });
+      });
 
       const shutdownBtn = panePower.querySelector('#btn-shutdown-daemon');
       if (shutdownBtn) shutdownBtn.addEventListener('click', () => {
@@ -525,33 +677,27 @@
   }
 
   function setupSystemSettingsObserver() {
-    function processSystemButtons() {
-      // Hide separate power & device buttons in System tab
-      const shutdownBtn = document.getElementById('shutdown_button');
-      const devBtn = document.getElementById('device_settings_button');
-      if (shutdownBtn && shutdownBtn.style.display !== 'none') shutdownBtn.style.display = 'none';
-      if (devBtn && devBtn.style.display !== 'none') devBtn.style.display = 'none';
-
-      // Re-title settings_button to "Settings"
-      const settingsBtn = document.getElementById('settings_button');
-      if (settingsBtn && !settingsBtn._unifiedWired) {
-        settingsBtn._unifiedWired = true;
-        const filler = settingsBtn.querySelector('.filler');
-        if (filler) filler.textContent = 'Settings';
-        settingsBtn.title = 'System Settings';
-
-        // Override click to open unified modal
-        settingsBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          openUnifiedSettings();
-        }, true);
-      }
+    function removeSystemTab() {
+      // Hide system tab button from main horizontal navigation
+      const navButtons = document.querySelectorAll('.tab button');
+      navButtons.forEach(btn => {
+        const text = (btn.textContent || '').trim().toLowerCase();
+        if (text.includes('system')) {
+          if (btn.style.display !== 'none') {
+            btn.style.setProperty('display', 'none', 'important');
+          }
+          // If System tab happened to be active, switch to Mixer tab
+          if (btn.classList.contains('active')) {
+            const mixerBtn = Array.from(navButtons).find(b => (b.textContent || '').trim().toLowerCase().includes('mixer'));
+            if (mixerBtn) mixerBtn.click();
+          }
+        }
+      });
     }
 
-    const obs = new MutationObserver(processSystemButtons);
+    const obs = new MutationObserver(removeSystemTab);
     obs.observe(document.body, { childList: true, subtree: true });
-    processSystemButtons();
+    removeSystemTab();
   }
 
   function enforceDefaultWindowSize() {
@@ -602,6 +748,25 @@
     setTimeout(align, 200);
     setTimeout(align, 600);
     setTimeout(align, 1500);
+  }
+
+  // Hide Old Mic Profiles Panel from body
+  function setupMicProfileObserver() {
+    function hideOldMicProfiles() {
+      const oldProfiles = document.querySelectorAll('.profile-border, [data-v-a1adf6fe]');
+      oldProfiles.forEach(el => {
+        if (el.style.display !== 'none') {
+          el.style.setProperty('display', 'none', 'important');
+        }
+        if (el.parentElement && el.parentElement.style.display !== 'none') {
+          el.parentElement.style.setProperty('display', 'none', 'important');
+        }
+      });
+    }
+
+    const obs = new MutationObserver(hideOldMicProfiles);
+    obs.observe(document.body, { childList: true, subtree: true });
+    hideOldMicProfiles();
   }
 
   // Quick Mic Gain Slider Outside Popup
