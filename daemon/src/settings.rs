@@ -61,6 +61,7 @@ impl SettingsHandle {
                 selected_locale: None,
                 tts_enabled: Some(false),
                 allow_network_access: Some(false),
+                shutdown_leds_off: Some(true),
                 macos_handle_aggregates: None,
                 profile_directory: None,
                 mic_profile_directory: None,
@@ -144,6 +145,10 @@ impl SettingsHandle {
 
         if settings.allow_network_access.is_none() {
             settings.allow_network_access = Some(false);
+        }
+
+        if settings.shutdown_leds_off.is_none() {
+            settings.shutdown_leds_off = Some(true);
         }
 
         if settings.macos_handle_aggregates.is_none() {
@@ -235,6 +240,16 @@ impl SettingsHandle {
     pub async fn set_allow_network_access(&self, enabled: bool) {
         let mut settings = self.settings.write().await;
         settings.allow_network_access = Some(enabled);
+    }
+
+    pub async fn get_shutdown_leds_off(&self) -> bool {
+        let settings = self.settings.read().await;
+        settings.shutdown_leds_off.unwrap_or(true)
+    }
+
+    pub async fn set_shutdown_leds_off(&self, enabled: bool) {
+        let mut settings = self.settings.write().await;
+        settings.shutdown_leds_off = Some(enabled);
     }
 
     pub async fn set_macos_handle_aggregates(&self, enabled: bool) {
@@ -706,6 +721,7 @@ pub struct Settings {
     selected_locale: Option<String>,
     tts_enabled: Option<bool>,
     allow_network_access: Option<bool>,
+    shutdown_leds_off: Option<bool>,
     macos_handle_aggregates: Option<bool>,
     profile_directory: Option<PathBuf>,
     mic_profile_directory: Option<PathBuf>,

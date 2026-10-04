@@ -366,6 +366,22 @@ impl<'a> Device<'a> {
     pub async fn shutdown(&mut self, avoid_save: bool) {
         debug!("Shutting Down Device: {}", self.hardware.serial_number);
 
+        if self.settings.get_shutdown_leds_off().await {
+            debug!("Turning off device LEDs on shutdown");
+            if self.device_supports_animations() {
+                let _ = self.goxlr.set_animation_mode(
+                    false,
+                    AnimationMode::None,
+                    0,
+                    0,
+                    WaterFallDir::Off,
+                );
+                let _ = self.goxlr.set_button_colours_1_3_40([0u8; 520]);
+            } else {
+                let _ = self.goxlr.set_button_colours([0u8; 328]);
+            }
+        }
+
         let commands = self
             .settings
             .get_device_shutdown_commands(&self.hardware.serial_number)
