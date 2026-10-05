@@ -29,7 +29,10 @@ try {
     # don't trigger PowerShell's NativeCommandError false positive.
     $prevEAP = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
-    cargo build --release 2>&1 | ForEach-Object { Write-Host $_ }
+    # Build core workspace binaries first so target/release has fresh goxlr-daemon.exe etc.
+    cargo build --release --workspace --exclude installer 2>&1 | ForEach-Object { Write-Host $_ }
+    # Build installer crate next so payload.tar.gz bundles the freshly built binaries
+    cargo build --release -p installer 2>&1 | ForEach-Object { Write-Host $_ }
     $ErrorActionPreference = $prevEAP
 
     if ($LASTEXITCODE -ne 0) {
@@ -42,6 +45,10 @@ try {
 
     # Copy binaries to output dir
     if (!(Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir | Out-Null }
+
+    # Remove obsolete installer.exe if present from prior builds
+    Remove-Item "$PSScriptRoot\target\release\installer.exe" -Force -ErrorAction SilentlyContinue
+    Remove-Item "$OutputDir\installer.exe" -Force -ErrorAction SilentlyContinue
 
     $exes = Get-ChildItem "$PSScriptRoot\target\release\*.exe" -ErrorAction SilentlyContinue
     if ($exes) {

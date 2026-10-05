@@ -7,12 +7,32 @@ use tar::Builder;
 #[cfg(target_os = "windows")]
 use windres::Build;
 
+fn watch_dir(path: &Path) {
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                watch_dir(&p);
+            } else {
+                println!("cargo:rerun-if-changed={}", p.display());
+            }
+        }
+    }
+}
+
 fn main() {
+    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let repo_root = manifest_dir.parent().unwrap();
+
     println!("cargo:rerun-if-changed=resources/installer.rc");
     println!("cargo:rerun-if-changed=resources/installer.manifest");
     println!("cargo:rerun-if-changed=../AUDIO DRIVER");
     println!("cargo:rerun-if-changed=../goxlr.png");
     println!("cargo:rerun-if-changed=../daemon/resources/goxlr-utility-large.png");
+    println!("cargo:rerun-if-changed=../target/release/goxlr-daemon.exe");
+    println!("cargo:rerun-if-changed=../target/release/goxlr-launcher.exe");
+    println!("cargo:rerun-if-changed=../target/release/goxlr-utility-ui.exe");
+    watch_dir(&repo_root.join("daemon").join("web-content"));
 
     #[cfg(target_os = "windows")]
     {

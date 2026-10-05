@@ -130,8 +130,8 @@ pub async fn spawn_event_handler(
                                     if let Ok(content) = std::fs::read_to_string(&window_state_path) {
                                         if let Ok(mut json) = serde_json::from_str::<serde_json::Value>(&content) {
                                             if let Some(main) = json.get_mut("main") {
-                                                main["width"] = serde_json::json!(1271);
-                                                main["height"] = serde_json::json!(770);
+                                                main["width"] = serde_json::json!(1188);
+                                                main["height"] = serde_json::json!(713);
                                                 main["maximized"] = serde_json::json!(false);
                                                 let _ = std::fs::write(&window_state_path, serde_json::to_string_pretty(&json).unwrap_or_default());
                                             }
@@ -143,8 +143,8 @@ pub async fn spawn_event_handler(
                                     }
                                     let default_state = serde_json::json!({
                                         "main": {
-                                            "width": 1271,
-                                            "height": 770,
+                                            "width": 1188,
+                                            "height": 713,
                                             "maximized": false,
                                             "visible": true,
                                             "decorated": true,

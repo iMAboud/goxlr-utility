@@ -10,8 +10,21 @@ use windres::Build;
 
 include!("src/cli.rs");
 
+fn watch_dir(path: &Path) {
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                watch_dir(&p);
+            } else {
+                println!("cargo:rerun-if-changed={}", p.display());
+            }
+        }
+    }
+}
+
 fn main() -> Result<(), Error> {
-    println!("cargo:rerun-if-changed=web-content");
+    watch_dir(Path::new("web-content"));
     println!("cargo:rerun-if-changed=resources/goxlr-daemon.rc");
     #[cfg(target_os = "windows")]
     {

@@ -31,10 +31,11 @@ use windows::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW,
     GetSystemMetrics, LoadCursorW, PostMessageW, PostQuitMessage, RegisterClassW,
-    SendMessageW, ShowWindow, TranslateMessage, CS_HREDRAW, CS_VREDRAW, HTCAPTION, IDC_ARROW,
+    SendMessageW, SetLayeredWindowAttributes, ShowWindow, TranslateMessage,
+    CS_HREDRAW, CS_VREDRAW, HTCAPTION, IDC_ARROW, LWA_ALPHA,
     MSG, SM_CXSCREEN, SM_CYSCREEN, SW_SHOW, SW_MINIMIZE, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_ERASEBKGND,
     WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_NCLBUTTONDOWN, WM_PAINT, WM_USER, WNDCLASSW,
-    WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_APPWINDOW, WS_POPUP,
+    WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_POPUP,
 };
 
 static PAYLOAD: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/payload.tar.gz"));
@@ -44,6 +45,7 @@ static LOGO_IMAGE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/goxlr_logo.
 const WM_INSTALL_PROGRESS: u32 = WM_USER + 101;
 const WM_INSTALL_FINISHED: u32 = WM_USER + 102;
 const WM_INSTALL_FAILED: u32 = WM_USER + 103;
+const WM_FADE_TICK: u32 = WM_USER + 104;
 
 const WIN_WIDTH: i32 = 840;
 const WIN_HEIGHT: i32 = 672;
@@ -121,9 +123,9 @@ fn main() {
         let x = (screen_w - WIN_WIDTH) / 2;
         let y = (screen_h - WIN_HEIGHT) / 2;
 
-        let title = to_wide("GoXLR Utility Setup");
+        let title = to_wide("GoXLR Setup");
         let hwnd = CreateWindowExW(
-            WS_EX_APPWINDOW,
+            WS_EX_APPWINDOW | WS_EX_LAYERED,
             PCWSTR::from_raw(class_name.as_ptr()),
             PCWSTR::from_raw(title.as_ptr()),
             WS_POPUP | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
@@ -136,6 +138,9 @@ fn main() {
             Some(instance.into()),
             None,
         ).unwrap();
+
+        // Start fully opaque
+        let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), 255, LWA_ALPHA);
 
         // Apply true rounded corners via Window Region
         let rgn = CreateRoundRectRgn(0, 0, WIN_WIDTH + 1, WIN_HEIGHT + 1, 22, 22);
@@ -206,14 +211,36 @@ unsafe extern "system" fn wnd_proc(
                 let mut s = GLOBAL_STATE.lock().unwrap();
                 s.state = InstallState::Completed;
                 s.progress = 100;
-                s.status_text = String::from("Launching GoXLR Utility...");
+                s.status_text = String::from("Launching GoXLR...");
             }
             unsafe { let _ = InvalidateRect(Some(hwnd), None, false); }
-            thread::spawn(|| {
-                thread::sleep(Duration::from_millis(600));
-                launch_and_exit(true);
+            // Launch app, then start fade-out
+            launch_and_exit(true);
+            let hwnd_u = hwnd.0 as usize;
+            thread::spawn(move || {
+                thread::sleep(Duration::from_millis(400));
+                // Fade from 255 to 0 in ~20 steps
+                for step in 0..20u8 {
+                    let alpha = 255 - (step as u32 * 255 / 19).min(255) as u8;
+                    unsafe {
+                        let _ = PostMessageW(
+                            Some(HWND(hwnd_u as *mut _)),
+                            WM_FADE_TICK,
+                            WPARAM(alpha as usize),
+                            LPARAM(0),
+                        );
+                    }
+                    thread::sleep(Duration::from_millis(20));
+                }
                 unsafe { PostQuitMessage(0); }
             });
+            LRESULT(0)
+        }
+        WM_FADE_TICK => {
+            let alpha = wparam.0 as u8;
+            unsafe {
+                let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), alpha, LWA_ALPHA);
+            }
             LRESULT(0)
         }
         WM_INSTALL_FAILED => {
@@ -555,13 +582,13 @@ unsafe fn draw_ui(_hwnd: HWND, hdc: HDC) {
     // Title Bar Text
     let old_font = SelectObject(hdc, font_title.into());
     SetTextColor(hdc, COLORREF(0x00FFFFFF)); // Bold White
-    let mut title_rc = RECT { left: 66, top: 16, right: 260, bottom: 40 };
-    let mut title_text = to_wide("GoXLR Utility");
+    let mut title_rc = RECT { left: 66, top: 16, right: 135, bottom: 40 };
+    let mut title_text = to_wide("GoXLR");
     DrawTextW(hdc, &mut title_text, &mut title_rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
     SelectObject(hdc, font_subtitle.into());
     SetTextColor(hdc, COLORREF(0x00A08090)); // Muted lavender
-    let mut sub_rc = RECT { left: 184, top: 18, right: 400, bottom: 40 };
+    let mut sub_rc = RECT { left: 145, top: 18, right: 400, bottom: 40 };
     let mut sub_text = to_wide("v1.2.4 Standalone Setup");
     DrawTextW(hdc, &mut sub_text, &mut sub_rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
@@ -828,14 +855,37 @@ fn handle_click(hwnd: HWND, x: i32, y: i32) {
     }
 }
 
-fn set_progress(hwnd_u: usize, progress: u32, status: &str) {
+fn set_progress(hwnd_u: usize, target: u32, status: &str) {
+    let current = {
+        let s = GLOBAL_STATE.lock().unwrap();
+        s.progress
+    };
+    // Update status text immediately
     {
         let mut s = GLOBAL_STATE.lock().unwrap();
-        s.progress = progress;
         s.status_text = status.to_string();
     }
-    unsafe {
-        let _ = PostMessageW(Some(HWND(hwnd_u as *mut _)), WM_INSTALL_PROGRESS, WPARAM(0), LPARAM(0));
+    // Smoothly animate from current to target
+    if target > current {
+        let steps = target - current;
+        for i in 1..=steps {
+            {
+                let mut s = GLOBAL_STATE.lock().unwrap();
+                s.progress = current + i;
+            }
+            unsafe {
+                let _ = PostMessageW(Some(HWND(hwnd_u as *mut _)), WM_INSTALL_PROGRESS, WPARAM(0), LPARAM(0));
+            }
+            thread::sleep(Duration::from_millis(25));
+        }
+    } else {
+        {
+            let mut s = GLOBAL_STATE.lock().unwrap();
+            s.progress = target;
+        }
+        unsafe {
+            let _ = PostMessageW(Some(HWND(hwnd_u as *mut _)), WM_INSTALL_PROGRESS, WPARAM(0), LPARAM(0));
+        }
     }
 }
 
