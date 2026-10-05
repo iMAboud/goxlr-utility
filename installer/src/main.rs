@@ -29,7 +29,7 @@ use windows::Win32::Graphics::Gdi::{
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
     GetSystemMetrics, LoadCursorW, PostMessageW, PostQuitMessage, RegisterClassW,
     SendMessageW, SetLayeredWindowAttributes, ShowWindow, TranslateMessage,
     CS_HREDRAW, CS_VREDRAW, HTCAPTION, IDC_ARROW, LWA_ALPHA,
@@ -232,7 +232,6 @@ unsafe extern "system" fn wnd_proc(
                     }
                     thread::sleep(Duration::from_millis(20));
                 }
-                unsafe { PostQuitMessage(0); }
             });
             LRESULT(0)
         }
@@ -240,6 +239,9 @@ unsafe extern "system" fn wnd_proc(
             let alpha = wparam.0 as u8;
             unsafe {
                 let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), alpha, LWA_ALPHA);
+                if alpha == 0 {
+                    let _ = DestroyWindow(hwnd);
+                }
             }
             LRESULT(0)
         }
@@ -253,7 +255,7 @@ unsafe extern "system" fn wnd_proc(
             LRESULT(0)
         }
         WM_CLOSE => {
-            unsafe { PostQuitMessage(0); }
+            unsafe { let _ = DestroyWindow(hwnd); }
             LRESULT(0)
         }
         WM_DESTROY => {
@@ -807,7 +809,7 @@ fn handle_mouse_move(hwnd: HWND, x: i32, y: i32) {
 fn handle_click(hwnd: HWND, x: i32, y: i32) {
     // Close button
     if x >= CLOSE_LEFT && x <= CLOSE_RIGHT && y >= CLOSE_TOP && y <= CLOSE_BOTTOM {
-        unsafe { PostQuitMessage(0); }
+        unsafe { SendMessageW(hwnd, WM_CLOSE, Some(WPARAM(0)), Some(LPARAM(0))); }
         return;
     }
 
@@ -846,7 +848,7 @@ fn handle_click(hwnd: HWND, x: i32, y: i32) {
     }
 
     if should_exit {
-        unsafe { PostQuitMessage(0); }
+        unsafe { SendMessageW(hwnd, WM_CLOSE, Some(WPARAM(0)), Some(LPARAM(0))); }
     } else if should_start_install {
         let hwnd_u = hwnd.0 as usize;
         thread::spawn(move || {

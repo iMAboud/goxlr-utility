@@ -17,8 +17,5 @@ interprocess = { workspace = true }
 which = { workspace = true }
 sysinfo = { workspace = true }
 
-[target.'cfg(target_family = "unix")'.dependencies]
-nix = { workspace = true, features = ["process"] }
-
-[target.'cfg(target_os = "windows")'.build-dependencies]
+[build-dependencies]
 windres = { workspace = true }

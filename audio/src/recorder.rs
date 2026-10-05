@@ -70,12 +70,7 @@ impl BufferedRecorder {
         // more responsive, allowing us to get the Notification in under 5ms from when the button
         // is pressed, so a 15ms buffer should be sufficient.
         //
-        // So we'll make this buffer OS relevant.
-        let forced_buffer = if cfg!(target_os = "windows") {
-            (48 * 2) * 15
-        } else {
-            (48 * 2) * 30
-        };
+        let forced_buffer = (48 * 2) * 15;
         let user_buffer = (48 * 2) * buffer_millis;
         let buffer_size = max(forced_buffer, user_buffer);
 

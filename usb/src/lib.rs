@@ -1,6 +1,3 @@
-#[cfg(not(target_os = "windows"))]
-pub use rusb;
-
 pub mod buttonstate;
 pub mod channelstate;
 pub mod colouring;

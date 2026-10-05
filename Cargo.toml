@@ -64,9 +64,6 @@ image = "0.25.8"
 ### CFG handler
 cfg-if = "1.0.3"
 
-### USB Handler
-rusb = "0.9.4"
-
 ### Lazy Statics
 lazy_static = "1.5.0"
 
@@ -86,6 +83,3 @@ sysinfo = "0.37.2"
 windows = "0.62.2"
 winreg = "0.55.0"
 windres = "0.2.2"
-
-### Linux Specific
-nix = "0.30.1"

@@ -59,8 +59,6 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[allow(dead_code)]
 const ICON: &[u8] = include_bytes!("../resources/goxlr-utility-large.png");
-#[cfg(target_os = "macos")]
-const ICON_MAC: &[u8] = include_bytes!("../resources/icon.icns");
 
 const FIRMWARE_PATHS: EnumMap<FirmwareSource, &str> = EnumMap::from_array([
     "https://utility.frostycoolslug.com/update-site/stable/",
@@ -74,12 +72,6 @@ rather than through additional parameters. When that comes, this will be removed
 */
 static OVERRIDE_SAMPLER_INPUT: Mutex<Option<String>> = Mutex::new(None);
 static OVERRIDE_SAMPLER_OUTPUT: Mutex<Option<String>> = Mutex::new(None);
-
-/**
-This is also ugly, but for now it's important to allow users to simply disable aggregate
-management, and have the utility obey.
-*/
-pub static HANDLE_MACOS_AGGREGATES: Mutex<Option<bool>> = Mutex::new(Some(true));
 
 lazy_static! {
     /**
@@ -127,10 +119,6 @@ async fn run_utility() -> Result<()> {
     // they get moved into the settings loader, which just causes headaches :D
     let args: Cli = Cli::parse();
     let settings = SettingsHandle::load(args.config).await?;
-
-    // Set the MacOS Aggregate management..
-    let aggregates = settings.get_macos_handle_aggregates().await;
-    HANDLE_MACOS_AGGREGATES.lock().unwrap().replace(aggregates);
 
     // Configure and / or create the log path, and file name.
     let log_path = settings.get_log_directory().await;
@@ -211,34 +199,6 @@ async fn run_utility() -> Result<()> {
         warn!("Unable to calculate timezone, using UTC for log timestamps");
     }
 
-    if cfg!(target_os = "macos") {
-        debug!(
-            "Configure MacOS Aggregates: {:?}",
-            HANDLE_MACOS_AGGREGATES.lock().unwrap().unwrap()
-        );
-    }
-    if is_root() {
-        if args.force_root {
-            error!("GoXLR Utility running as root, this is generally considered bad.");
-        } else {
-            error!("The GoXLR Utility Daemon is not designed to be run as root, and should run");
-            error!("as the current active user. If you're having problems with permissions,");
-            error!("please consult the 'Permissions' section of the README. Running as root");
-            error!("*WILL* cause issues with the sampler, and may pose a security risk.");
-            error!("");
-
-            if cfg!(target_os = "macos") {
-                error!("As a MacOS user, you may be attempting to run as root to solve the");
-                error!("issues of initialisation. The correct approach to this is to run the");
-                error!("goxlr-initialiser binary via sudo whenever a GoXLR device is attached.");
-                error!("This can be achieved either via a launchctl script or manually on the");
-                error!("command line.");
-                error!("");
-            }
-            error!("To override this message, please start with --force-root");
-            std::process::exit(-1);
-        }
-    }
 
     if let Some(device) = args.override_sample_input_device {
         OVERRIDE_SAMPLER_INPUT.lock().unwrap().replace(device);
@@ -439,13 +399,3 @@ async fn run_utility() -> Result<()> {
     Ok(())
 }
 
-#[cfg(target_family = "unix")]
-fn is_root() -> bool {
-    nix::unistd::Uid::effective().is_root()
-}
-
-#[cfg(not(target_family = "unix"))]
-fn is_root() -> bool {
-    // On non-unix systems, we can't root check, assume we're good!
-    false
-}

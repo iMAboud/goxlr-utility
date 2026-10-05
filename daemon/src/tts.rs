@@ -85,12 +85,7 @@ impl TTS {
 
         if self.tts.is_none() {
             let tts = match Tts::default() {
-                Ok(mut tts) => {
-                    if cfg!(target_os = "macos") {
-                        let _ = tts.set_rate(tts.max_rate());
-                    }
-                    tts
-                }
+                Ok(tts) => tts,
                 Err(e) => {
                     warn!("Unable to Spawn TTS instance: {:?}", e);
                     return;
@@ -150,10 +145,12 @@ impl Tts {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn set_rate(&mut self, _rate: f32) -> Result<()> {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn max_rate(&self) -> f32 {
         0.
     }
