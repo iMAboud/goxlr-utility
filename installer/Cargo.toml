@@ -28,3 +28,4 @@ windows = { workspace = true, features = [
 flate2 = "1.1.4"
 tar = "0.4.46"
 windres = { workspace = true }
+image = { workspace = true }

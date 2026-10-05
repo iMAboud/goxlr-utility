@@ -2642,6 +2642,7 @@ name = "installer"
 version = "1.2.4"
 dependencies = [
  "flate2",
+ "image",
  "lazy_static",
  "mslnk",
  "tar",
