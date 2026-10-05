@@ -42,21 +42,10 @@ impl OpenOutputStream for CpalPlayback {
             Err(e) => bail!("PANIC attempting to Fetch Device! {:#?}", e),
         };
 
-        let config = if cfg!(target_os = "windows") {
-            // Windows expects the file to be resampled to the output config, so we can't use the
-            // input audio. Instead, we gotta resample.
-            match catch_unwind(|| device.default_output_config()) {
-                Ok(Ok(output)) => output.config(),
-                Ok(Err(e)) => bail!("Unable to get Default Stream: {}", e),
-                Err(e) => bail!("PANIC Attempting to Default Stream: {:#?}", e),
-            }
-        } else {
-            // MacOS will resample inside CoreAudio, so we send the samples directly.
-            cpal::StreamConfig {
-                channels: spec.spec.channels.count() as cpal::ChannelCount,
-                sample_rate: cpal::SampleRate(spec.spec.rate),
-                buffer_size: cpal::BufferSize::Fixed(64),
-            }
+        let config = match catch_unwind(|| device.default_output_config()) {
+            Ok(Ok(output)) => output.config(),
+            Ok(Err(e)) => bail!("Unable to get Default Stream: {}", e),
+            Err(e) => bail!("PANIC Attempting to Default Stream: {:#?}", e),
         };
 
         // Before we go any further, is the channel count of the audio correct?

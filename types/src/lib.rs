@@ -923,5 +923,4 @@ pub enum DeviceType {
 pub enum DriverInterface {
     #[default]
     TUSB,
-    LIBUSB,
 }

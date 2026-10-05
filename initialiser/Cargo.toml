@@ -12,13 +12,3 @@ repository.workspace = true
 [dependencies]
 # Common Workspace
 tokio = { workspace = true }
-cfg-if = { workspace = true }
-
-
-[target.'cfg(not(windows))'.dependencies]
-anyhow = { workspace = true }
-rusb = { workspace = true }
-
-[target.'cfg(target_os = "macos")'.dependencies]
-block = "0.1.6"
-xpc-connection-sys = { git = "https://github.com/dfrankland/xpc-connection-rs.git" }
