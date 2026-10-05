@@ -1,0 +1,30 @@
+[package]
+name = "installer"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "GoXLR"
+path = "src/main.rs"
+
+[dependencies]
+flate2 = "1.1.4"
+tar = "0.4.46"
+mslnk = "0.1.8"
+lazy_static = { workspace = true }
+winreg = { workspace = true }
+windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+] }
+
+[build-dependencies]
+flate2 = "1.1.4"
+tar = "0.4.46"
+windres = { workspace = true }

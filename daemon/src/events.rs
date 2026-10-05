@@ -122,7 +122,7 @@ pub async fn spawn_event_handler(
                         let activate = state.settings_handle.get_activate().await;
                         let url = get_util_url(&state);
 
-                        // If saving window size is disabled, enforce default window dimensions (1269 x 824)
+                        // If saving window size is disabled, enforce default window dimensions (1271 x 770)
                         if !state.settings_handle.get_save_window_size().await {
                             if let Some(base_dirs) = directories::BaseDirs::new() {
                                 let window_state_path = base_dirs.config_dir().join("com.frostycoolslug.goxlr-utility-ui").join(".window-state.json");
@@ -130,8 +130,8 @@ pub async fn spawn_event_handler(
                                     if let Ok(content) = std::fs::read_to_string(&window_state_path) {
                                         if let Ok(mut json) = serde_json::from_str::<serde_json::Value>(&content) {
                                             if let Some(main) = json.get_mut("main") {
-                                                main["width"] = serde_json::json!(1269);
-                                                main["height"] = serde_json::json!(824);
+                                                main["width"] = serde_json::json!(1271);
+                                                main["height"] = serde_json::json!(770);
                                                 main["maximized"] = serde_json::json!(false);
                                                 let _ = std::fs::write(&window_state_path, serde_json::to_string_pretty(&json).unwrap_or_default());
                                             }
@@ -143,8 +143,8 @@ pub async fn spawn_event_handler(
                                     }
                                     let default_state = serde_json::json!({
                                         "main": {
-                                            "width": 1269,
-                                            "height": 824,
+                                            "width": 1271,
+                                            "height": 770,
                                             "maximized": false,
                                             "visible": true,
                                             "decorated": true,
@@ -192,6 +192,11 @@ pub async fn spawn_event_handler(
                                     }
                                 }
                             }
+
+                            // After launching the UI, set its titlebar color to blend with the app background
+                            std::thread::spawn(|| {
+                                apply_titlebar_color();
+                            });
                         }
 
                         #[cfg(unix)]
@@ -244,4 +249,50 @@ fn get_util_url(state: &DaemonState) -> String {
     }
 
     format!("http://{}:{}/", host, state.http_settings.port)
+}
+
+/// Sets the titlebar color of the GoXLR Utility UI window to #0E0C1A using
+/// the Windows DWM API (DWMWA_CAPTION_COLOR). Polls for the window to appear.
+#[cfg(windows)]
+fn apply_titlebar_color() {
+    use std::thread::sleep;
+    use std::time::Duration;
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CAPTION_COLOR};
+    use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
+    use windows::core::w;
+
+    // #0E0C1A as COLORREF (0x00BBGGRR)
+    let color: u32 = 0x001A0C0E;
+
+    // Wait for the UI window to appear (up to 10 seconds)
+    for _ in 0..20 {
+        sleep(Duration::from_millis(500));
+
+        let hwnd = match unsafe { FindWindowW(None, w!("GoXLR Utility")) } {
+            Ok(h) if h != HWND::default() => h,
+            _ => continue,
+        };
+
+        let result = unsafe {
+            DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_CAPTION_COLOR,
+                &color as *const u32 as *const std::ffi::c_void,
+                std::mem::size_of::<u32>() as u32,
+            )
+        };
+
+        match result {
+            Ok(()) => {
+                debug!("Titlebar color set to #0E0C1A");
+                return;
+            }
+            Err(e) => {
+                warn!("Failed to set titlebar color: {:?}", e);
+                return;
+            }
+        }
+    }
+    warn!("GoXLR Utility UI window not found for titlebar color");
 }

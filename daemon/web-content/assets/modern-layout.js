@@ -121,6 +121,12 @@
 
     setupVisualizerHeightObserver();
     enforceDefaultWindowSize();
+
+    // 8. Compact rename: "Channel X" -> "Ch X" in lighting mixer fader buttons
+    setupCompactRenameObserver();
+
+    // 9. Default to 'Mic' tab on startup instead of 'Mixer'
+    setDefaultTabToMic();
   }
 
   function setupTabTracker() {
@@ -686,10 +692,10 @@
           if (btn.style.display !== 'none') {
             btn.style.setProperty('display', 'none', 'important');
           }
-          // If System tab happened to be active, switch to Mixer tab
+          // If System tab happened to be active, switch to Mic tab
           if (btn.classList.contains('active')) {
-            const mixerBtn = Array.from(navButtons).find(b => (b.textContent || '').trim().toLowerCase().includes('mixer'));
-            if (mixerBtn) mixerBtn.click();
+            const micBtn = Array.from(navButtons).find(b => (b.textContent || '').trim().toLowerCase() === 'mic');
+            if (micBtn) micBtn.click();
           }
         }
       });
@@ -701,20 +707,25 @@
   }
 
   function enforceDefaultWindowSize() {
-    const isSaved = (window.c && window.c.getConfig && window.c.getConfig()?.save_window_size) ||
-                    (localStorage.getItem('goxlr_save_window_size') === 'true');
-    if (!isSaved) {
-      if (window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.appWindow) {
-        try {
-          const { appWindow, LogicalSize } = window.__TAURI__.window;
-          appWindow.setSize(new LogicalSize(1269, 824));
-        } catch(e) {}
-      } else if (window.resizeTo) {
-        try {
-          window.resizeTo(1269, 824);
-        } catch(e) {}
+    function applySize() {
+      const isSaved = (window.c && window.c.getConfig && window.c.getConfig()?.save_window_size) ||
+                      (localStorage.getItem('goxlr_save_window_size') === 'true');
+      if (!isSaved) {
+        if (window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.appWindow) {
+          try {
+            const { appWindow, LogicalSize } = window.__TAURI__.window;
+            appWindow.setSize(new LogicalSize(1271, 770));
+          } catch(e) {}
+        } else if (window.resizeTo) {
+          try {
+            window.resizeTo(1271, 770);
+          } catch(e) {}
+        }
       }
     }
+    applySize();
+    setTimeout(applySize, 300);
+    setTimeout(applySize, 1000);
   }
 
   function setupVisualizerHeightObserver() {
@@ -871,6 +882,66 @@
     const observer = new MutationObserver(attachToTable);
     observer.observe(document.body, { childList: true, subtree: true });
     attachToTable();
+  }
+
+  // Compact Rename: "Channel X" -> "Ch X" in Lighting > Mixer fader buttons
+  function setupCompactRenameObserver() {
+    function renameChannelButtons() {
+      // Target lighting mixer fader buttons (data-v-336ef9bd scope, data-v-71d31aa9 buttons)
+      const lightingMixerButtons = document.querySelectorAll('div[data-v-336ef9bd] .button[data-v-71d31aa9]');
+      lightingMixerButtons.forEach(btn => {
+        const leftSide = btn.querySelector('.left_side');
+        if (!leftSide) return;
+        const text = leftSide.textContent.trim();
+        if (text.startsWith('Channel ') && !text.startsWith('Ch ')) {
+          leftSide.textContent = text.replace('Channel ', 'Ch ');
+        }
+      });
+    }
+
+    const obs = new MutationObserver(renameChannelButtons);
+    obs.observe(document.body, { childList: true, subtree: true });
+    renameChannelButtons();
+  }
+
+  function resetScrollPositions() {
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.tabs-details, .container[data-v-b9b06ac2]').forEach(el => {
+        el.scrollLeft = 0;
+      });
+    });
+  }
+
+  function setDefaultTabToMic() {
+    let switched = false;
+    const interval = setInterval(() => {
+      const tabButtons = document.querySelectorAll('.tab button');
+      for (const btn of tabButtons) {
+        const txt = (btn.textContent || '').trim().toLowerCase();
+        if (txt === 'mic') {
+          if (!btn.classList.contains('active')) {
+            btn.click();
+          }
+          resetScrollPositions();
+          switched = true;
+          clearInterval(interval);
+          break;
+        }
+      }
+    }, 40);
+
+    setTimeout(() => {
+      clearInterval(interval);
+      resetScrollPositions();
+    }, 4000);
+
+    // Also reset scroll whenever any tab button or expander is clicked
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.tab button') || e.target.closest('.expander[data-v-cb3a0b58]')) {
+        setTimeout(resetScrollPositions, 50);
+        setTimeout(resetScrollPositions, 200);
+      }
+    });
   }
 
   // Initialize on DOM Ready

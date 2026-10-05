@@ -12,7 +12,7 @@ members = [
     "profile",
     "initialiser",
     "scribbles",
-    "defaults",
+    "defaults", "installer",
 ]
 
 [workspace.package]
