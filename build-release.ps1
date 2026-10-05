@@ -29,7 +29,10 @@ try {
     # don't trigger PowerShell's NativeCommandError false positive.
     $prevEAP = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
-    cargo build --release 2>&1 | ForEach-Object { Write-Host $_ }
+    # Build core workspace binaries first so target/release has fresh goxlr-daemon.exe etc.
+    cargo build --release --workspace --exclude installer 2>&1 | ForEach-Object { Write-Host $_ }
+    # Build installer crate next so payload.tar.gz bundles the freshly built binaries
+    cargo build --release -p installer 2>&1 | ForEach-Object { Write-Host $_ }
     $ErrorActionPreference = $prevEAP
 
     if ($LASTEXITCODE -ne 0) {

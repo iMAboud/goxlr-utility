@@ -13,6 +13,8 @@ fn main() {
     println!("cargo:rerun-if-changed=../AUDIO DRIVER");
     println!("cargo:rerun-if-changed=../goxlr.png");
     println!("cargo:rerun-if-changed=../daemon/resources/goxlr-utility-large.png");
+    println!("cargo:rerun-if-changed=../daemon/web-content");
+    println!("cargo:rerun-if-changed=../target/release/goxlr-daemon.exe");
 
     #[cfg(target_os = "windows")]
     {

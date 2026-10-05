@@ -1830,8 +1830,7 @@ div[aria-label*="bleep"] .content,
 .footer,
 div.version,
 #app > select,
-#app > div > select,
-#app > div > div:has(> select) {
+#app > div > select {
   display: none !important;
   visibility: hidden !important;
   height: 0 !important;

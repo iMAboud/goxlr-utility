@@ -268,18 +268,14 @@
   function setupFooterRemoval() {
     function removeFooter() {
       const versionEls = document.querySelectorAll('.version');
-      versionEls.forEach(el => el.remove());
+      versionEls.forEach(el => {
+        el.style.setProperty('display', 'none', 'important');
+      });
 
-      const selects = document.querySelectorAll('#app > select, #app > div > select, select:not(#modern-profile-select):not(#modern-mic-profile-select):not(.modern-select)');
-      selects.forEach(sel => {
-        if (!sel.closest('.modern-header-bar') && !sel.closest('.modal-body') && !sel.closest('.modern-settings-modal') && !sel.closest('.group-container') && !sel.closest('.container') && !sel.closest('.content')) {
-          const parent = sel.parentElement;
-          if (parent && parent.id !== 'app' && parent.id !== 'main') {
-            parent.remove();
-          } else {
-            sel.remove();
-          }
-        }
+      // Target language select dropdown at root level if present, hide it cleanly without deleting containers
+      const rootSelects = document.querySelectorAll('#app > select, #app > div > select');
+      rootSelects.forEach(sel => {
+        sel.style.setProperty('display', 'none', 'important');
       });
     }
     const obs = new MutationObserver(removeFooter);
@@ -1000,12 +996,30 @@
         display.textContent = `${val} dB`;
         if (window.$ && window.c && window.c.hasActiveDevice && window.c.hasActiveDevice()) {
           try {
-            const mType = window.c.getActiveDevice().mic_status.mic_type;
+            const status = window.c.getActiveDevice().mic_status;
+            const mType = status.mic_type || 'Dynamic';
             window.$.send_command(window.c.getActiveSerial(), { SetMicrophoneGain: [mType, val] });
-            window.c.getActiveDevice().mic_status.mic_gains[mType] = val;
+            if (status.mic_gains) {
+              status.mic_gains[mType] = val;
+            }
           } catch(err) {}
         }
       });
+
+      // Keep gain display and slider synced with device state
+      setInterval(() => {
+        if (window.c && window.c.hasActiveDevice && window.c.hasActiveDevice()) {
+          try {
+            const status = window.c.getActiveDevice().mic_status;
+            const mType = status.mic_type || 'Dynamic';
+            const liveGain = status.mic_gains ? (status.mic_gains[mType] ?? 40) : 40;
+            if (document.activeElement !== slider) {
+              slider.value = liveGain;
+              display.textContent = `${liveGain} dB`;
+            }
+          } catch(e) {}
+        }
+      }, 500);
     }
 
     const obs = new MutationObserver(injectQuickGain);
