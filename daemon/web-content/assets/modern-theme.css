@@ -1763,3 +1763,82 @@ div[data-v-a1a932ca] svg {
   margin-top: 4px !important;
 }
 
+/* Reworked Mic Setup Widget */
+.modern-mic-setup-card {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 10px 12px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  min-width: 180px !important;
+  box-sizing: border-box !important;
+}
+.modern-widget-header {
+  border-bottom: 1px solid var(--border-subtle) !important;
+  padding-bottom: 6px !important;
+  text-align: center !important;
+}
+.modern-widget-title {
+  color: var(--accent-purple-light) !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+}
+.modern-widget-body {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+}
+.modern-mic-setup-trigger {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  background: var(--bg-surface) !important;
+  color: var(--accent-purple-light) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-md) !important;
+  padding: 6px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+.modern-mic-setup-trigger:hover {
+  background: rgba(139, 92, 246, 0.2) !important;
+  color: #fff !important;
+  border-color: var(--accent-purple) !important;
+}
+
+/* Center Lighting > Cough Widget Content */
+div[aria-label*="Cough"] .content,
+div[aria-label*="cough"] .content,
+div[aria-label*="Bleep"] .content,
+div[aria-label*="bleep"] .content,
+.cough-lighting-container .content,
+.cough-container .content {
+  justify-content: center !important;
+}
+
+/* Remove bottom version footer, language selector, and bottom containers */
+.version[data-v-86472b76],
+.version,
+#footer,
+.footer,
+div.version,
+#app > select,
+#app > div > select,
+#app > div > div:has(> select) {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

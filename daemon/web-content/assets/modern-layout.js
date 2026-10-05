@@ -7,6 +7,7 @@
   let lastActiveTabId = 'mixer';
 
   function initModernShell() {
+    document.title = 'GoXLR';
     const mainEl = document.getElementById('main');
     if (!mainEl || document.querySelector('.modern-header-bar')) {
       return;
@@ -56,7 +57,6 @@
         </div>
       </div>
       <div class="modern-header-right">
-        <span class="modern-version-tag" id="modern-version-tag">GoXLR Utility</span>
         <button class="modern-header-btn" id="modern-btn-vis-toggle" title="Toggle Mixer Visualiser">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
@@ -127,6 +127,164 @@
 
     // 9. Default to 'Mic' tab on startup instead of 'Mixer'
     setDefaultTabToMic();
+
+    // 10. Remove bottom footer completely
+    setupFooterRemoval();
+
+    // 11. Reorder Mixer tab sliders so System is right of Music
+    setupMixerOrderObserver();
+
+    // 12. Collapse/expand button in Mixer tab (default collapsed)
+    setupMixerCollapseObserver();
+
+    // 13. Center Lighting > Cough widget content
+    setupCoughCenteringObserver();
+  }
+
+  function setupCoughCenteringObserver() {
+    function centerCoughWidget() {
+      const containers = document.querySelectorAll('.container, .group-container');
+      containers.forEach(container => {
+        const label = (container.getAttribute('aria-label') || '').toLowerCase();
+        const titleEl = container.querySelector('.title, h1, h2, h3');
+        const titleText = titleEl ? titleEl.textContent.toLowerCase() : '';
+        if (label.includes('cough') || label.includes('bleep') || titleText.includes('cough') || titleText.includes('bleep')) {
+          const contentEl = container.querySelector('.content');
+          if (contentEl) {
+            contentEl.style.setProperty('justify-content', 'center', 'important');
+          }
+        }
+      });
+    }
+    const obs = new MutationObserver(centerCoughWidget);
+    obs.observe(document.body, { childList: true, subtree: true });
+    centerCoughWidget();
+  }
+
+  let isMixerCollapsed = true;
+
+  function setupMixerCollapseObserver() {
+    function updateMixerCollapse() {
+      const containers = document.querySelectorAll('.faders-container, .mixer-channels, div[data-v-b9d1e087]');
+      containers.forEach(container => {
+        const channels = Array.from(container.children);
+        if (channels.length < 4) return;
+
+        channels.forEach(ch => {
+          if (ch.classList && ch.classList.contains('modern-mixer-expander')) return;
+          const text = (ch.textContent || '').trim().toLowerCase();
+          const isCollapsible = text.includes('game') || text.includes('console') || text.includes('line in') || text.includes('linein') || text.includes('samples') || text.includes('sample');
+          if (isCollapsible) {
+            if (isMixerCollapsed) {
+              ch.style.setProperty('display', 'none', 'important');
+            } else {
+              ch.style.removeProperty('display');
+            }
+          }
+        });
+
+        let expanderBtn = container.querySelector('.modern-mixer-expander');
+        if (!expanderBtn) {
+          expanderBtn = document.createElement('button');
+          expanderBtn.className = 'expander modern-mixer-expander';
+          expanderBtn.style.cssText = 'align-self: center; margin: 0 6px; padding: 12px 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; height: 100px;';
+
+          expanderBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            isMixerCollapsed = !isMixerCollapsed;
+            updateMixerCollapse();
+          });
+
+          const systemCh = channels.find(ch => (ch.textContent || '').trim().toLowerCase().includes('system'));
+          if (systemCh && systemCh.nextSibling) {
+            container.insertBefore(expanderBtn, systemCh.nextSibling);
+          } else {
+            container.appendChild(expanderBtn);
+          }
+        }
+
+        if (isMixerCollapsed) {
+          expanderBtn.title = 'Expand Section';
+          expanderBtn.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          `;
+        } else {
+          expanderBtn.title = 'Collapse Section';
+          expanderBtn.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          `;
+        }
+      });
+    }
+
+    const obs = new MutationObserver(updateMixerCollapse);
+    obs.observe(document.body, { childList: true, subtree: true });
+    updateMixerCollapse();
+  }
+
+  function setupMixerOrderObserver() {
+    function getChannelKey(el) {
+      const text = (el.textContent || '').trim().toLowerCase();
+      if (text.includes('microphone') || text.startsWith('mic')) return 0;
+      if (text.includes('voice chat') || text.includes('chat')) return 1;
+      if (text.includes('music')) return 2;
+      if (text.includes('system')) return 3;
+      if (text.includes('game')) return 4;
+      if (text.includes('console')) return 5;
+      if (text.includes('line in') || text.includes('linein')) return 6;
+      if (text.includes('samples') || text.includes('sample')) return 7;
+      return 99;
+    }
+
+    function reorderMixerChannels() {
+      const containers = document.querySelectorAll('.faders-container, .mixer-channels, div[data-v-b9d1e087]');
+      containers.forEach(container => {
+        const channels = Array.from(container.children);
+        if (channels.length >= 4) {
+          const sorted = channels.slice().sort((a, b) => getChannelKey(a) - getChannelKey(b));
+          let changed = false;
+          for (let i = 0; i < channels.length; i++) {
+            if (channels[i] !== sorted[i] && getChannelKey(sorted[i]) < 99) {
+              changed = true;
+              break;
+            }
+          }
+          if (changed) {
+            sorted.forEach(ch => container.appendChild(ch));
+          }
+        }
+      });
+    }
+
+    const obs = new MutationObserver(reorderMixerChannels);
+    obs.observe(document.body, { childList: true, subtree: true });
+    reorderMixerChannels();
+  }
+
+  function setupFooterRemoval() {
+    function removeFooter() {
+      const versionEls = document.querySelectorAll('.version');
+      versionEls.forEach(el => el.remove());
+
+      const selects = document.querySelectorAll('#app > select, #app > div > select, select:not(#modern-profile-select):not(#modern-mic-profile-select):not(.modern-select)');
+      selects.forEach(sel => {
+        if (!sel.closest('.modern-header-bar') && !sel.closest('.modal-body') && !sel.closest('.modern-settings-modal') && !sel.closest('.group-container') && !sel.closest('.container') && !sel.closest('.content')) {
+          const parent = sel.parentElement;
+          if (parent && parent.id !== 'app' && parent.id !== 'main') {
+            parent.remove();
+          } else {
+            sel.remove();
+          }
+        }
+      });
+    }
+    const obs = new MutationObserver(removeFooter);
+    obs.observe(document.body, { childList: true, subtree: true });
+    removeFooter();
   }
 
   function setupTabTracker() {
@@ -780,18 +938,14 @@
     hideOldMicProfiles();
   }
 
-  // Quick Mic Gain Slider Outside Popup
+  // Quick Mic Gain & Reworked Mic Setup Widget
   function setupMicGainObserver() {
     function injectQuickGain() {
       const micSetupBtn = document.getElementById('mic_setup');
       if (!micSetupBtn) return;
 
-      const container = micSetupBtn.closest('.content');
-      if (!container || container.querySelector('#modern-quick-gain-box')) return;
-
-      const gainBox = document.createElement('div');
-      gainBox.id = 'modern-quick-gain-box';
-      gainBox.className = 'modern-quick-gain-box';
+      const parent = micSetupBtn.parentElement;
+      if (!parent || parent.querySelector('#modern-mic-setup-card')) return;
 
       let currentGain = 40;
       let micType = 'Dynamic';
@@ -803,18 +957,43 @@
         } catch(e) {}
       }
 
-      gainBox.innerHTML = `
-        <div class="quick-gain-header">
-          <span class="quick-gain-title">Mic Gain</span>
-          <span class="quick-gain-val" id="modern-gain-display">${currentGain} dB</span>
+      const widgetCard = document.createElement('div');
+      widgetCard.id = 'modern-mic-setup-card';
+      widgetCard.className = 'modern-mic-setup-card';
+
+      widgetCard.innerHTML = `
+        <div class="modern-widget-header">
+          <span class="modern-widget-title">MIC SETUP</span>
         </div>
-        <input type="range" id="modern-gain-slider" min="0" max="72" value="${currentGain}" class="modern-gain-range" />
+        <div class="modern-widget-body">
+          <div class="quick-gain-header">
+            <span class="quick-gain-title">GAIN</span>
+            <span class="quick-gain-val" id="modern-gain-display">${currentGain} dB</span>
+          </div>
+          <input type="range" id="modern-gain-slider" min="0" max="72" value="${currentGain}" class="modern-gain-range" />
+          <button class="modern-mic-setup-trigger" id="modern-mic-setup-trigger" title="Open Mic Setup Options">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+            <span>Mic Setup</span>
+          </button>
+        </div>
       `;
 
-      micSetupBtn.parentElement.appendChild(gainBox);
+      micSetupBtn.style.setProperty('display', 'none', 'important');
+      parent.appendChild(widgetCard);
 
-      const slider = gainBox.querySelector('#modern-gain-slider');
-      const display = gainBox.querySelector('#modern-gain-display');
+      const slider = widgetCard.querySelector('#modern-gain-slider');
+      const display = widgetCard.querySelector('#modern-gain-display');
+      const trigger = widgetCard.querySelector('#modern-mic-setup-trigger');
+
+      trigger.addEventListener('click', (e) => {
+        e.preventDefault();
+        micSetupBtn.click();
+      });
 
       slider.addEventListener('input', (e) => {
         const val = parseInt(e.target.value, 10);
