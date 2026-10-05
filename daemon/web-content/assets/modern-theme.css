@@ -334,20 +334,25 @@ div[style*="background-color:#3b413f"] {
 
 .tab {
   display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
   gap: 6px !important;
-  padding: 6px 16px !important;
-  background: var(--bg-sidebar) !important;
-  border-bottom: 1px solid var(--border-subtle) !important;
-  overflow-x: auto !important;
+  padding: 4px 6px !important;
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-pill) !important;
+  margin: 8px auto !important;
+  width: fit-content !important;
   flex-shrink: 0 !important;
+  box-shadow: var(--shadow-card) !important;
 }
 .tab button {
   background: transparent !important;
   border: 1px solid transparent !important;
-  border-radius: var(--radius-md) !important;
+  border-radius: var(--radius-pill) !important;
   color: var(--text-muted) !important;
-  padding: 6px 14px !important;
-  font-size: 13px !important;
+  padding: 5px 16px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   min-width: unset !important;
   max-width: unset !important;
@@ -469,6 +474,54 @@ div[style*="background-color:#3b413f"] {
 .selected.MixB[data-v-7fcb9729] {
   background: #f59e0b !important;
   color: #000 !important;
+}
+
+/* Compact Configuration & Option Lists (Fix vertical scrollbars & padding) */
+.buttonList[data-v-72ea6ef1] {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-card) !important;
+  overflow: visible !important;
+  max-height: none !important;
+  height: auto !important;
+  padding: 2px !important;
+}
+.buttonList[data-v-72ea6ef1] .button[data-v-72ea6ef1],
+.buttonList[data-v-72ea6ef1] > div,
+.buttonList[data-v-72ea6ef1] label {
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+/* Eliminate scrollbars inside list option containers */
+div:has(> .buttonList[data-v-72ea6ef1]),
+div[data-v-72ea6ef1] {
+  overflow: visible !important;
+  max-height: none !important;
+  height: auto !important;
+}
+
+/* List buttons compact height and padding */
+.buttonList[data-v-72ea6ef1] button,
+.buttonList[data-v-72ea6ef1] .label[data-v-72ea6ef1] {
+  padding: 5px 12px !important;
+  margin: 3px 0 !important;
+  font-size: 12px !important;
+  border-radius: var(--radius-sm) !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-width: 130px !important;
+  max-width: 175px !important;
+}
+
+/* Ensure equal column layout for option button lists */
+div:has(> .buttonList[data-v-72ea6ef1]) {
+  flex: 1 !important;
+  min-width: 130px !important;
+  max-width: 175px !important;
 }
 
 /* ==========================================================================
