@@ -1,8 +1,8 @@
+use flate2::Compression;
+use flate2::write::GzEncoder;
 use std::env;
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use flate2::Compression;
-use flate2::write::GzEncoder;
 use tar::Builder;
 #[cfg(target_os = "windows")]
 use windres::Build;
@@ -36,9 +36,7 @@ fn main() {
 
     #[cfg(target_os = "windows")]
     {
-        Build::new()
-            .compile("resources/installer.rc")
-            .unwrap();
+        Build::new().compile("resources/installer.rc").unwrap();
     }
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
@@ -76,7 +74,10 @@ fn prepare_device_image(out_dir: &Path) {
         println!("cargo:warning=goxlr.png not found at {:?}", img_src);
     }
 
-    let logo_src = repo_root.join("daemon").join("resources").join("goxlr-utility-large.png");
+    let logo_src = repo_root
+        .join("daemon")
+        .join("resources")
+        .join("goxlr-utility-large.png");
     let logo_dst = out_dir.join("goxlr_logo.bin");
     if logo_src.exists() {
         if let Ok(l_img) = image::open(&logo_src) {
@@ -102,7 +103,6 @@ fn prepare_device_image(out_dir: &Path) {
         }
     }
 }
-
 
 fn create_payload(destination: &Path) {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
@@ -133,7 +133,8 @@ fn create_payload(destination: &Path) {
     for name in driver_files {
         let p = driver_dir.join(name);
         if p.exists() {
-            let mut f = File::open(&p).unwrap_or_else(|_| panic!("Failed opening driver file {name}"));
+            let mut f =
+                File::open(&p).unwrap_or_else(|_| panic!("Failed opening driver file {name}"));
             tar.append_file(format!("driver/{name}"), &mut f)
                 .unwrap_or_else(|_| panic!("Failed adding {name} to payload"));
         }
@@ -178,11 +179,14 @@ fn create_payload(destination: &Path) {
 
         let found = candidates.iter().find(|p| p.exists());
         if let Some(src) = found {
-            let mut f = File::open(src).unwrap_or_else(|_| panic!("Failed opening {name} at {:?}", src));
+            let mut f =
+                File::open(src).unwrap_or_else(|_| panic!("Failed opening {name} at {:?}", src));
             tar.append_file(format!("app/{name}"), &mut f)
                 .unwrap_or_else(|_| panic!("Failed adding app file {name}"));
         } else {
-            println!("cargo:warning=File {name} not found in build paths, checking alternative locations");
+            println!(
+                "cargo:warning=File {name} not found in build paths, checking alternative locations"
+            );
         }
     }
 
@@ -191,7 +195,8 @@ fn create_payload(destination: &Path) {
         let p = repo_root.join(lic);
         if p.exists() {
             let mut f = File::open(&p).expect("open license");
-            tar.append_file(format!("app/{lic}"), &mut f).expect("append license");
+            tar.append_file(format!("app/{lic}"), &mut f)
+                .expect("append license");
         }
     }
 

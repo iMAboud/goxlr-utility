@@ -23,7 +23,7 @@ jobs:
       - name: Build GoXLR Installer (release)
         shell: pwsh
         run: |
-          cargo build --release --bin GoXLR
+          .\build-release.ps1
           if (!(Test-Path "target/release/GoXLR.exe")) {
             throw "GoXLR.exe was not found in target/release!"
           }
