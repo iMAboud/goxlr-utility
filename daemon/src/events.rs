@@ -258,7 +258,7 @@ fn apply_titlebar_color() {
     use std::thread::sleep;
     use std::time::Duration;
     use windows::Win32::Foundation::HWND;
-    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CAPTION_COLOR};
+    use windows::Win32::Graphics::Dwm::{DWMWA_CAPTION_COLOR, DwmSetWindowAttribute};
     use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
     use windows::core::w;
 
