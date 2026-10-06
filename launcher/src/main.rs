@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![allow(clippy::collapsible_if)]
 
 use anyhow::{Result, bail};
 use std::ffi::OsStr;

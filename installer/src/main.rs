@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![allow(unsafe_op_in_unsafe_fn)]
+#![allow(clippy::too_many_arguments, clippy::manual_range_contains, clippy::useless_format, clippy::collapsible_if)]
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -1123,9 +1124,9 @@ fn draw_line(
 fn handle_mouse_move(hwnd: HWND, x: i32, y: i32) {
     let mut s = GLOBAL_STATE.lock().unwrap();
 
-    let close_hover = x >= CLOSE_LEFT && x <= CLOSE_RIGHT && y >= CLOSE_TOP && y <= CLOSE_BOTTOM;
-    let min_hover = x >= MIN_LEFT && x <= MIN_RIGHT && y >= MIN_TOP && y <= MIN_BOTTOM;
-    let btn_hover = x >= BTN_LEFT && x <= BTN_RIGHT && y >= BTN_TOP && y <= BTN_BOTTOM;
+    let close_hover = (CLOSE_LEFT..=CLOSE_RIGHT).contains(&x) && (CLOSE_TOP..=CLOSE_BOTTOM).contains(&y);
+    let min_hover = (MIN_LEFT..=MIN_RIGHT).contains(&x) && (MIN_TOP..=MIN_BOTTOM).contains(&y);
+    let btn_hover = (BTN_LEFT..=BTN_RIGHT).contains(&x) && (BTN_TOP..=BTN_BOTTOM).contains(&y);
 
     if s.close_hover != close_hover || s.min_hover != min_hover || s.btn_hover != btn_hover {
         s.close_hover = close_hover;
@@ -1139,7 +1140,7 @@ fn handle_mouse_move(hwnd: HWND, x: i32, y: i32) {
 
 fn handle_click(hwnd: HWND, x: i32, y: i32) {
     // Close button
-    if x >= CLOSE_LEFT && x <= CLOSE_RIGHT && y >= CLOSE_TOP && y <= CLOSE_BOTTOM {
+    if (CLOSE_LEFT..=CLOSE_RIGHT).contains(&x) && (CLOSE_TOP..=CLOSE_BOTTOM).contains(&y) {
         unsafe {
             SendMessageW(hwnd, WM_CLOSE, Some(WPARAM(0)), Some(LPARAM(0)));
         }
@@ -1147,7 +1148,7 @@ fn handle_click(hwnd: HWND, x: i32, y: i32) {
     }
 
     // Minimize button
-    if x >= MIN_LEFT && x <= MIN_RIGHT && y >= MIN_TOP && y <= MIN_BOTTOM {
+    if (MIN_LEFT..=MIN_RIGHT).contains(&x) && (MIN_TOP..=MIN_BOTTOM).contains(&y) {
         unsafe {
             let _ = ShowWindow(hwnd, SW_MINIMIZE);
         }
@@ -1161,7 +1162,7 @@ fn handle_click(hwnd: HWND, x: i32, y: i32) {
         let mut s = GLOBAL_STATE.lock().unwrap();
 
         // Pill Action Button
-        if x >= BTN_LEFT && x <= BTN_RIGHT && y >= BTN_TOP && y <= BTN_BOTTOM {
+        if (BTN_LEFT..=BTN_RIGHT).contains(&x) && (BTN_TOP..=BTN_BOTTOM).contains(&y) {
             match s.state {
                 InstallState::Ready => {
                     s.state = InstallState::Installing;
@@ -1265,13 +1266,13 @@ fn run_installation(hwnd_u: usize, autostart: bool, use_app: bool, install_drive
     let app_dir = PathBuf::from(&program_files).join("GoXLR Utility");
     let driver_dir = PathBuf::from(&program_files).join(r"TC-Helicon\GoXLR_Audio_Driver\x64");
 
-    if let Err(_) = fs::create_dir_all(&app_dir) {
+    if fs::create_dir_all(&app_dir).is_err() {
         unsafe {
             let _ = PostMessageW(Some(hwnd), WM_INSTALL_FAILED, WPARAM(0), LPARAM(0));
         }
         return;
     }
-    if let Err(_) = fs::create_dir_all(&driver_dir) {
+    if fs::create_dir_all(&driver_dir).is_err() {
         unsafe {
             let _ = PostMessageW(Some(hwnd), WM_INSTALL_FAILED, WPARAM(0), LPARAM(0));
         }
@@ -1284,25 +1285,23 @@ fn run_installation(hwnd_u: usize, autostart: bool, use_app: bool, install_drive
     let mut archive = Archive::new(gz);
 
     if let Ok(entries) = archive.entries() {
-        for entry in entries {
-            if let Ok(mut file) = entry {
-                if let Ok(path) = file.path() {
-                    let path_str = path.to_string_lossy();
-                    if path_str.starts_with("app/") {
-                        let rel = path_str.trim_start_matches("app/");
-                        let dest = app_dir.join(rel);
-                        if let Some(parent) = dest.parent() {
-                            let _ = fs::create_dir_all(parent);
-                        }
-                        let _ = file.unpack(&dest);
-                    } else if path_str.starts_with("driver/") {
-                        let rel = path_str.trim_start_matches("driver/");
-                        let dest = driver_dir.join(rel);
-                        if let Some(parent) = dest.parent() {
-                            let _ = fs::create_dir_all(parent);
-                        }
-                        let _ = file.unpack(&dest);
+        for mut file in entries.flatten() {
+            if let Ok(path) = file.path() {
+                let path_str = path.to_string_lossy();
+                if path_str.starts_with("app/") {
+                    let rel = path_str.trim_start_matches("app/");
+                    let dest = app_dir.join(rel);
+                    if let Some(parent) = dest.parent() {
+                        let _ = fs::create_dir_all(parent);
                     }
+                    let _ = file.unpack(&dest);
+                } else if path_str.starts_with("driver/") {
+                    let rel = path_str.trim_start_matches("driver/");
+                    let dest = driver_dir.join(rel);
+                    if let Some(parent) = dest.parent() {
+                        let _ = fs::create_dir_all(parent);
+                    }
+                    let _ = file.unpack(&dest);
                 }
             }
         }
