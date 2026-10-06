@@ -23,9 +23,9 @@ jobs:
       - name: Build GoXLR Installer (release)
         shell: pwsh
         run: |
-          cargo build --release --bin GoXLR
-          if (!(Test-Path "target/release/GoXLR.exe")) {
-            throw "GoXLR.exe was not found in target/release!"
+          .\build-release.ps1
+          if (!(Test-Path "build-output/GoXLR.exe")) {
+            throw "GoXLR.exe was not found in build-output!"
           }
 
       - name: Extract Cargo Version
@@ -50,6 +50,6 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            target/release/GoXLR.exe
+            build-output/GoXLR.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
