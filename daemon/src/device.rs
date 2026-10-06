@@ -1,3 +1,5 @@
+#![allow(clippy::collapsible_if)]
+
 use std::collections::{HashSet, VecDeque};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -1667,29 +1669,27 @@ impl<'a> Device<'a> {
                 continue;
             }
 
-            if self.fader_pause_until[fader].paused {
-                if strategy == FaderStrategy::InstantJump {
-                    self.fader_pause_until[fader].paused = false;
+            if strategy == FaderStrategy::InstantJump {
+                self.fader_pause_until[fader].paused = false;
+            } else if self.fader_pause_until[fader].paused {
+                let until = self.fader_pause_until[fader].until;
+
+                // Calculate min and max, make sure we don't overflow..
+                let min = match until < 5 {
+                    true => 0,
+                    false => until - 5,
+                };
+
+                let max = match until > 250 {
+                    true => 255,
+                    false => until + 5,
+                };
+
+                // Are we in this range?
+                if !(min..=max).contains(&new_volume) {
+                    continue;
                 } else {
-                    let until = self.fader_pause_until[fader].until;
-
-                    // Calculate min and max, make sure we don't overflow..
-                    let min = match until < 5 {
-                        true => 0,
-                        false => until - 5,
-                    };
-
-                    let max = match until > 250 {
-                        true => 255,
-                        false => until + 5,
-                    };
-
-                    // Are we in this range?
-                    if !(min..=max).contains(&new_volume) {
-                        continue;
-                    } else {
-                        self.fader_pause_until[fader].paused = false;
-                    }
+                    self.fader_pause_until[fader].paused = false;
                 }
             }
             self.fader_last_seen[fader] = new_volume;
@@ -1943,9 +1943,13 @@ impl<'a> Device<'a> {
                 // Update the Submix when volume changes via IPC
                 self.update_submix_for(channel, volume)?;
 
-                if let Some(fader) = self.profile.get_fader_from_channel(channel) {
-                    self.fader_pause_until[fader].paused = true;
-                    self.fader_pause_until[fader].until = volume;
+                if self.settings.get_fader_strategy(self.serial()).await
+                    != FaderStrategy::InstantJump
+                {
+                    if let Some(fader) = self.profile.get_fader_from_channel(channel) {
+                        self.fader_pause_until[fader].paused = true;
+                        self.fader_pause_until[fader].until = volume;
+                    }
                 }
             }
 
@@ -2743,11 +2747,17 @@ impl<'a> Device<'a> {
             }
 
             GoXLRCommand::SetFaderStrategy(value) => {
-                let serial = self.serial();
-                let current = self.settings.get_fader_strategy(serial).await;
+                if value == FaderStrategy::InstantJump {
+                    for fader in FaderName::iter() {
+                        self.fader_pause_until[fader].paused = false;
+                    }
+                }
+
+                let serial = self.serial().to_string();
+                let current = self.settings.get_fader_strategy(&serial).await;
 
                 if current != value {
-                    self.settings.set_fader_strategy(serial, value).await;
+                    self.settings.set_fader_strategy(&serial, value).await;
                     self.settings.save().await;
                 }
             }
@@ -3058,7 +3068,7 @@ impl<'a> Device<'a> {
                 }
             }
             GoXLRCommand::SetSubMixVolume(channel, volume) => {
-                self.apply_submix_volume(channel, volume)?;
+                self.apply_submix_volume(channel, volume).await?;
             }
             GoXLRCommand::SetSubMixLinked(channel, linked) => {
                 self.link_submix_channel(channel, linked)?;
@@ -4109,7 +4119,7 @@ impl<'a> Device<'a> {
         Ok(())
     }
 
-    fn apply_submix_volume(&mut self, channel: ChannelName, volume: u8) -> Result<()> {
+    async fn apply_submix_volume(&mut self, channel: ChannelName, volume: u8) -> Result<()> {
         if let Some(mix) = self.profile.get_submix_from_channel(channel) {
             if self.profile.is_channel_linked(mix) {
                 // We need to calculate the new value for the main channel..
@@ -4118,9 +4128,13 @@ impl<'a> Device<'a> {
                 let linked_volume = (volume as f64 / ratio) as u8;
                 if self.profile.get_channel_volume(channel) != linked_volume {
                     // Setup the latch..
-                    if let Some(fader) = self.profile.get_fader_from_channel(channel) {
-                        self.fader_pause_until[fader].paused = true;
-                        self.fader_pause_until[fader].until = linked_volume;
+                    if self.settings.get_fader_strategy(self.serial()).await
+                        != FaderStrategy::InstantJump
+                    {
+                        if let Some(fader) = self.profile.get_fader_from_channel(channel) {
+                            self.fader_pause_until[fader].paused = true;
+                            self.fader_pause_until[fader].until = linked_volume;
+                        }
                     }
                     self.profile.set_channel_volume(channel, linked_volume)?;
                     self.goxlr.set_volume(channel, linked_volume)?;

@@ -1,3 +1,5 @@
+#![allow(clippy::collapsible_if)]
+
 // This file primarily handles 'global' events which may occur inside the daemon from a potential
 // variety of sources, which affect other parts of the daemon.
 
