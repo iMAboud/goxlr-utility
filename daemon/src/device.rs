@@ -1943,7 +1943,9 @@ impl<'a> Device<'a> {
                 // Update the Submix when volume changes via IPC
                 self.update_submix_for(channel, volume)?;
 
-                if self.settings.get_fader_strategy(self.serial()).await != FaderStrategy::InstantJump {
+                if self.settings.get_fader_strategy(self.serial()).await
+                    != FaderStrategy::InstantJump
+                {
                     if let Some(fader) = self.profile.get_fader_from_channel(channel) {
                         self.fader_pause_until[fader].paused = true;
                         self.fader_pause_until[fader].until = volume;
@@ -4126,7 +4128,9 @@ impl<'a> Device<'a> {
                 let linked_volume = (volume as f64 / ratio) as u8;
                 if self.profile.get_channel_volume(channel) != linked_volume {
                     // Setup the latch..
-                    if self.settings.get_fader_strategy(self.serial()).await != FaderStrategy::InstantJump {
+                    if self.settings.get_fader_strategy(self.serial()).await
+                        != FaderStrategy::InstantJump
+                    {
                         if let Some(fader) = self.profile.get_fader_from_channel(channel) {
                             self.fader_pause_until[fader].paused = true;
                             self.fader_pause_until[fader].until = linked_volume;

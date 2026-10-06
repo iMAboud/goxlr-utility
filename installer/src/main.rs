@@ -1,6 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![allow(unsafe_op_in_unsafe_fn)]
-#![allow(clippy::too_many_arguments, clippy::manual_range_contains, clippy::useless_format, clippy::collapsible_if)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::manual_range_contains,
+    clippy::useless_format,
+    clippy::collapsible_if
+)]
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -1124,7 +1129,8 @@ fn draw_line(
 fn handle_mouse_move(hwnd: HWND, x: i32, y: i32) {
     let mut s = GLOBAL_STATE.lock().unwrap();
 
-    let close_hover = (CLOSE_LEFT..=CLOSE_RIGHT).contains(&x) && (CLOSE_TOP..=CLOSE_BOTTOM).contains(&y);
+    let close_hover =
+        (CLOSE_LEFT..=CLOSE_RIGHT).contains(&x) && (CLOSE_TOP..=CLOSE_BOTTOM).contains(&y);
     let min_hover = (MIN_LEFT..=MIN_RIGHT).contains(&x) && (MIN_TOP..=MIN_BOTTOM).contains(&y);
     let btn_hover = (BTN_LEFT..=BTN_RIGHT).contains(&x) && (BTN_TOP..=BTN_BOTTOM).contains(&y);
 
