@@ -19,9 +19,9 @@ use goxlr_ipc::{
 use goxlr_profile_loader::components::mute::MuteFunction;
 use goxlr_types::{
     Button, ChannelName, DeviceType, DisplayModeComponents, EffectBankPresets, EffectKey,
-    EncoderName, FaderName, HardTuneSource, InputDevice as BasicInputDevice, MicrophoneParamKey,
-    Mix, MuteState, OutputDevice as BasicOutputDevice, RobotRange, SampleBank, SampleButtons,
-    SamplePlaybackMode, VersionNumber, VodMode, WaterfallDirection,
+    EncoderName, FaderName, FaderStrategy, HardTuneSource, InputDevice as BasicInputDevice,
+    MicrophoneParamKey, Mix, MuteState, OutputDevice as BasicOutputDevice, RobotRange, SampleBank,
+    SampleButtons, SamplePlaybackMode, VersionNumber, VodMode, WaterfallDirection,
 };
 use goxlr_usb::animation::{AnimationMode, WaterFallDir};
 use goxlr_usb::buttonstate::{ButtonStates, Buttons};
@@ -284,6 +284,7 @@ impl<'a> Device<'a> {
 
         let locked_faders = self.settings.get_device_lock_faders(self.serial()).await;
         let vod_mode = self.settings.get_device_vod_mode(self.serial()).await;
+        let fader_strategy = self.settings.get_fader_strategy(self.serial()).await;
 
         let sampler_fade_duration = self.settings.get_sampler_fade_duration(self.serial()).await;
 
@@ -356,6 +357,7 @@ impl<'a> Device<'a> {
                 lock_faders: locked_faders,
                 fade_duration: sampler_fade_duration,
                 vod_mode,
+                fader_strategy,
             },
             button_down: button_states,
             profile_name: self.profile.name().to_owned(),
@@ -441,6 +443,7 @@ impl<'a> Device<'a> {
                 | GoXLRCommand::SetMonitorWithFx(_)
                 | GoXLRCommand::SetSamplerResetOnClear(_)
                 | GoXLRCommand::SetLockFaders(_)
+                | GoXLRCommand::SetFaderStrategy(_)
                 => {
                     if !avoid_write {
                         let _ = self.perform_command(command).await;
@@ -1655,6 +1658,7 @@ impl<'a> Device<'a> {
 
     async fn update_volumes_to(&mut self, volumes: [u8; 4]) -> Result<bool> {
         let mut value_changed = false;
+        let strategy = self.settings.get_fader_strategy(self.serial()).await;
 
         for fader in FaderName::iter() {
             let new_volume = volumes[fader as usize];
@@ -1663,24 +1667,28 @@ impl<'a> Device<'a> {
                     continue;
                 }
             } else if self.fader_pause_until[fader].paused {
-                let until = self.fader_pause_until[fader].until;
-
-                // Calculate min and max, make sure we don't overflow..
-                let min = match until < 5 {
-                    true => 0,
-                    false => until - 5,
-                };
-
-                let max = match until > 250 {
-                    true => 255,
-                    false => until + 5,
-                };
-
-                // Are we in this range?
-                if !(min..=max).contains(&new_volume) {
-                    continue;
-                } else {
+                if strategy == FaderStrategy::InstantJump {
                     self.fader_pause_until[fader].paused = false;
+                } else {
+                    let until = self.fader_pause_until[fader].until;
+
+                    // Calculate min and max, make sure we don't overflow..
+                    let min = match until < 5 {
+                        true => 0,
+                        false => until - 5,
+                    };
+
+                    let max = match until > 250 {
+                        true => 255,
+                        false => until + 5,
+                    };
+
+                    // Are we in this range?
+                    if !(min..=max).contains(&new_volume) {
+                        continue;
+                    } else {
+                        self.fader_pause_until[fader].paused = false;
+                    }
                 }
             }
             self.fader_last_seen[fader] = new_volume;
@@ -2728,6 +2736,16 @@ impl<'a> Device<'a> {
                     self.settings
                         .set_device_profile_name(self.serial(), self.profile.name())
                         .await;
+                    self.settings.save().await;
+                }
+            }
+
+            GoXLRCommand::SetFaderStrategy(value) => {
+                let serial = self.serial();
+                let current = self.settings.get_fader_strategy(serial).await;
+
+                if current != value {
+                    self.settings.set_fader_strategy(serial, value).await;
                     self.settings.save().await;
                 }
             }
