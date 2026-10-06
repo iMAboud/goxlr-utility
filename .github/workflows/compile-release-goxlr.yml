@@ -3,6 +3,8 @@ name: Compile GoXLR.exe & Create Release
 on:
   workflow_dispatch:
   push:
+    branches:
+      - '**'
     tags:
       - 'v*'
 
