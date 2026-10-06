@@ -1662,33 +1662,33 @@ impl<'a> Device<'a> {
 
         for fader in FaderName::iter() {
             let new_volume = volumes[fader as usize];
+            if strategy == FaderStrategy::InstantJump {
+                self.fader_pause_until[fader].paused = false;
+            }
+
             if self.is_device_mini() {
                 if new_volume == self.fader_last_seen[fader] {
                     continue;
                 }
             } else if self.fader_pause_until[fader].paused {
-                if strategy == FaderStrategy::InstantJump {
-                    self.fader_pause_until[fader].paused = false;
+                let until = self.fader_pause_until[fader].until;
+
+                // Calculate min and max, make sure we don't overflow..
+                let min = match until < 5 {
+                    true => 0,
+                    false => until - 5,
+                };
+
+                let max = match until > 250 {
+                    true => 255,
+                    false => until + 5,
+                };
+
+                // Are we in this range?
+                if !(min..=max).contains(&new_volume) {
+                    continue;
                 } else {
-                    let until = self.fader_pause_until[fader].until;
-
-                    // Calculate min and max, make sure we don't overflow..
-                    let min = match until < 5 {
-                        true => 0,
-                        false => until - 5,
-                    };
-
-                    let max = match until > 250 {
-                        true => 255,
-                        false => until + 5,
-                    };
-
-                    // Are we in this range?
-                    if !(min..=max).contains(&new_volume) {
-                        continue;
-                    } else {
-                        self.fader_pause_until[fader].paused = false;
-                    }
+                    self.fader_pause_until[fader].paused = false;
                 }
             }
             self.fader_last_seen[fader] = new_volume;
