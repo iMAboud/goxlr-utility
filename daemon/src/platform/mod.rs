@@ -1,5 +1,3 @@
-#![allow(clippy::collapsible_if)]
-
 mod windows;
 
 use crate::DaemonState;

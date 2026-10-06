@@ -619,21 +619,9 @@
         const chatMute = dev.chat_mute_mutes_mic_to_chat ?? settings.chat_mute_mutes_mic_to_chat ?? true;
         const lockFaders = dev.lock_faders ?? settings.lock_faders ?? false;
         const monitorFx = dev.enable_monitor_with_fx ?? settings.enable_monitor_with_fx ?? false;
-        const faderStrategy = dev.fader_strategy ?? settings.fader_strategy ?? 'InstantJump';
 
         paneDevice.innerHTML = `
           <div class="modern-settings-list">
-            <div class="modern-setting-item">
-              <div class="modern-setting-info">
-                <div class="modern-setting-label">Fader Takeover Behavior</div>
-                <div class="modern-setting-desc">Instant Jump (Direct Takeover) or Pickup (Soft Takeover)</div>
-              </div>
-              <select id="setting-fader-strategy" class="modern-select">
-                <option value="InstantJump" ${faderStrategy === 'InstantJump' ? 'selected' : ''}>Instant Jump</option>
-                <option value="Pickup" ${faderStrategy === 'Pickup' ? 'selected' : ''}>Pickup</option>
-              </select>
-            </div>
-
             <div class="modern-setting-item">
               <div class="modern-setting-info">
                 <div class="modern-setting-label">Mute Hold Duration</div>
@@ -679,13 +667,6 @@
             </div>
           </div>
         `;
-
-        const faderStrategySelect = paneDevice.querySelector('#setting-fader-strategy');
-        if (faderStrategySelect) faderStrategySelect.addEventListener('change', (e) => {
-          if (window.$ && window.c && window.c.hasActiveDevice && window.c.hasActiveDevice()) {
-            window.$.send_command(window.c.getActiveSerial(), { SetFaderStrategy: e.target.value });
-          }
-        });
 
         const holdSlider = paneDevice.querySelector('#setting-hold-delay');
         const holdVal = paneDevice.querySelector('#setting-hold-delay-val');

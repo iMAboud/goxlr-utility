@@ -5,11 +5,11 @@ use goxlr_types::{
     AnimationMode, Button, ButtonColourOffStyle, ChannelName, CompressorAttackTime,
     CompressorRatio, CompressorReleaseTime, DeviceType, DisplayMode, DriverInterface, EchoStyle,
     EffectBankPresets, EncoderColourTargets, EqFrequencies, FaderDisplayStyle, FaderName,
-    FaderStrategy, FirmwareDetails, FirmwareVersions, GateTimes, GenderStyle, HardTuneSource,
-    HardTuneStyle, InputDevice, MegaphoneStyle, MicrophoneType, MiniEqFrequencies, Mix,
-    MuteFunction, MuteState, OutputDevice, PitchStyle, ReverbStyle, RobotStyle, SampleBank,
-    SampleButtons, SamplePlayOrder, SamplePlaybackMode, SamplerColourTargets, SimpleColourTargets,
-    SubMixChannelName, VersionNumber, VodMode, WaterfallDirection,
+    FirmwareDetails, FirmwareVersions, GateTimes, GenderStyle, HardTuneSource, HardTuneStyle,
+    InputDevice, MegaphoneStyle, MicrophoneType, MiniEqFrequencies, Mix, MuteFunction, MuteState,
+    OutputDevice, PitchStyle, ReverbStyle, RobotStyle, SampleBank, SampleButtons, SamplePlayOrder,
+    SamplePlaybackMode, SamplerColourTargets, SimpleColourTargets, SubMixChannelName,
+    VersionNumber, VodMode, WaterfallDirection,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
@@ -411,7 +411,6 @@ pub struct Settings {
     pub lock_faders: bool,
     pub fade_duration: u32,
     pub vod_mode: VodMode,
-    pub fader_strategy: FaderStrategy,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

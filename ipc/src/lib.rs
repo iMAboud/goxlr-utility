@@ -12,11 +12,11 @@ use goxlr_types::{
     AnimationMode, Button, ButtonColourGroups, ButtonColourOffStyle, ChannelName,
     CompressorAttackTime, CompressorRatio, CompressorReleaseTime, DeviceType, DisplayMode,
     DisplayModeComponents, EchoStyle, EffectBankPresets, EncoderColourTargets, EqFrequencies,
-    FaderDisplayStyle, FaderName, FaderStrategy, GateTimes, GenderStyle, HardTuneSource,
-    HardTuneStyle, InputDevice, MegaphoneStyle, MicrophoneType, MiniEqFrequencies, Mix,
-    MuteFunction, MuteState, OutputDevice, PitchStyle, ReverbStyle, RobotRange, RobotStyle,
-    SampleBank, SampleButtons, SamplePlayOrder, SamplePlaybackMode, SamplerColourTargets,
-    SimpleColourTargets, VersionNumber, VodMode, WaterfallDirection,
+    FaderDisplayStyle, FaderName, GateTimes, GenderStyle, HardTuneSource, HardTuneStyle,
+    InputDevice, MegaphoneStyle, MicrophoneType, MiniEqFrequencies, Mix, MuteFunction, MuteState,
+    OutputDevice, PitchStyle, ReverbStyle, RobotRange, RobotStyle, SampleBank, SampleButtons,
+    SamplePlayOrder, SamplePlaybackMode, SamplerColourTargets, SimpleColourTargets, VersionNumber,
+    VodMode, WaterfallDirection,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -310,7 +310,6 @@ pub enum GoXLRCommand {
     SetSamplerFadeDuration(u32),
     SetLockFaders(bool),
     SetVodMode(VodMode),
-    SetFaderStrategy(FaderStrategy),
 
     // These control the current GoXLR 'State'..
     SetActiveEffectPreset(EffectBankPresets),

@@ -1,5 +1,3 @@
-#![allow(clippy::collapsible_if)]
-
 // This file primarily handles 'global' events which may occur inside the daemon from a potential
 // variety of sources, which affect other parts of the daemon.
 
@@ -260,7 +258,7 @@ fn apply_titlebar_color() {
     use std::thread::sleep;
     use std::time::Duration;
     use windows::Win32::Foundation::HWND;
-    use windows::Win32::Graphics::Dwm::{DWMWA_CAPTION_COLOR, DwmSetWindowAttribute};
+    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CAPTION_COLOR};
     use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
     use windows::core::w;
 

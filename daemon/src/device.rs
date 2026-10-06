@@ -1,5 +1,3 @@
-#![allow(clippy::collapsible_if)]
-
 use std::collections::{HashSet, VecDeque};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -21,9 +19,9 @@ use goxlr_ipc::{
 use goxlr_profile_loader::components::mute::MuteFunction;
 use goxlr_types::{
     Button, ChannelName, DeviceType, DisplayModeComponents, EffectBankPresets, EffectKey,
-    EncoderName, FaderName, FaderStrategy, HardTuneSource, InputDevice as BasicInputDevice,
-    MicrophoneParamKey, Mix, MuteState, OutputDevice as BasicOutputDevice, RobotRange, SampleBank,
-    SampleButtons, SamplePlaybackMode, VersionNumber, VodMode, WaterfallDirection,
+    EncoderName, FaderName, HardTuneSource, InputDevice as BasicInputDevice, MicrophoneParamKey,
+    Mix, MuteState, OutputDevice as BasicOutputDevice, RobotRange, SampleBank, SampleButtons,
+    SamplePlaybackMode, VersionNumber, VodMode, WaterfallDirection,
 };
 use goxlr_usb::animation::{AnimationMode, WaterFallDir};
 use goxlr_usb::buttonstate::{ButtonStates, Buttons};
@@ -286,7 +284,6 @@ impl<'a> Device<'a> {
 
         let locked_faders = self.settings.get_device_lock_faders(self.serial()).await;
         let vod_mode = self.settings.get_device_vod_mode(self.serial()).await;
-        let fader_strategy = self.settings.get_fader_strategy(self.serial()).await;
 
         let sampler_fade_duration = self.settings.get_sampler_fade_duration(self.serial()).await;
 
@@ -359,7 +356,6 @@ impl<'a> Device<'a> {
                 lock_faders: locked_faders,
                 fade_duration: sampler_fade_duration,
                 vod_mode,
-                fader_strategy,
             },
             button_down: button_states,
             profile_name: self.profile.name().to_owned(),
@@ -445,7 +441,6 @@ impl<'a> Device<'a> {
                 | GoXLRCommand::SetMonitorWithFx(_)
                 | GoXLRCommand::SetSamplerResetOnClear(_)
                 | GoXLRCommand::SetLockFaders(_)
-                | GoXLRCommand::SetFaderStrategy(_)
                 => {
                     if !avoid_write {
                         let _ = self.perform_command(command).await;
@@ -1660,17 +1655,13 @@ impl<'a> Device<'a> {
 
     async fn update_volumes_to(&mut self, volumes: [u8; 4]) -> Result<bool> {
         let mut value_changed = false;
-        let strategy = self.settings.get_fader_strategy(self.serial()).await;
 
         for fader in FaderName::iter() {
             let new_volume = volumes[fader as usize];
-
-            if new_volume == self.fader_last_seen[fader] {
-                continue;
-            }
-
-            if strategy == FaderStrategy::InstantJump {
-                self.fader_pause_until[fader].paused = false;
+            if self.is_device_mini() {
+                if new_volume == self.fader_last_seen[fader] {
+                    continue;
+                }
             } else if self.fader_pause_until[fader].paused {
                 let until = self.fader_pause_until[fader].until;
 
@@ -1704,7 +1695,6 @@ impl<'a> Device<'a> {
                 );
 
                 value_changed = true;
-                self.goxlr.set_volume(channel, new_volume)?;
                 self.profile.set_channel_volume(channel, new_volume)?;
 
                 // Update the Submix..
@@ -1943,13 +1933,9 @@ impl<'a> Device<'a> {
                 // Update the Submix when volume changes via IPC
                 self.update_submix_for(channel, volume)?;
 
-                if self.settings.get_fader_strategy(self.serial()).await
-                    != FaderStrategy::InstantJump
-                {
-                    if let Some(fader) = self.profile.get_fader_from_channel(channel) {
-                        self.fader_pause_until[fader].paused = true;
-                        self.fader_pause_until[fader].until = volume;
-                    }
+                if let Some(fader) = self.profile.get_fader_from_channel(channel) {
+                    self.fader_pause_until[fader].paused = true;
+                    self.fader_pause_until[fader].until = volume;
                 }
             }
 
@@ -2745,22 +2731,6 @@ impl<'a> Device<'a> {
                     self.settings.save().await;
                 }
             }
-
-            GoXLRCommand::SetFaderStrategy(value) => {
-                if value == FaderStrategy::InstantJump {
-                    for fader in FaderName::iter() {
-                        self.fader_pause_until[fader].paused = false;
-                    }
-                }
-
-                let serial = self.serial().to_string();
-                let current = self.settings.get_fader_strategy(&serial).await;
-
-                if current != value {
-                    self.settings.set_fader_strategy(&serial, value).await;
-                    self.settings.save().await;
-                }
-            }
             GoXLRCommand::LoadProfileColours(profile_name) => {
                 debug!("Loading Colours For Profile: {}", profile_name);
                 let profile_path = self.settings.get_profile_directory().await;
@@ -3068,7 +3038,7 @@ impl<'a> Device<'a> {
                 }
             }
             GoXLRCommand::SetSubMixVolume(channel, volume) => {
-                self.apply_submix_volume(channel, volume).await?;
+                self.apply_submix_volume(channel, volume)?;
             }
             GoXLRCommand::SetSubMixLinked(channel, linked) => {
                 self.link_submix_channel(channel, linked)?;
@@ -4119,7 +4089,7 @@ impl<'a> Device<'a> {
         Ok(())
     }
 
-    async fn apply_submix_volume(&mut self, channel: ChannelName, volume: u8) -> Result<()> {
+    fn apply_submix_volume(&mut self, channel: ChannelName, volume: u8) -> Result<()> {
         if let Some(mix) = self.profile.get_submix_from_channel(channel) {
             if self.profile.is_channel_linked(mix) {
                 // We need to calculate the new value for the main channel..
@@ -4128,13 +4098,9 @@ impl<'a> Device<'a> {
                 let linked_volume = (volume as f64 / ratio) as u8;
                 if self.profile.get_channel_volume(channel) != linked_volume {
                     // Setup the latch..
-                    if self.settings.get_fader_strategy(self.serial()).await
-                        != FaderStrategy::InstantJump
-                    {
-                        if let Some(fader) = self.profile.get_fader_from_channel(channel) {
-                            self.fader_pause_until[fader].paused = true;
-                            self.fader_pause_until[fader].until = linked_volume;
-                        }
+                    if let Some(fader) = self.profile.get_fader_from_channel(channel) {
+                        self.fader_pause_until[fader].paused = true;
+                        self.fader_pause_until[fader].until = linked_volume;
                     }
                     self.profile.set_channel_volume(channel, linked_volume)?;
                     self.goxlr.set_volume(channel, linked_volume)?;

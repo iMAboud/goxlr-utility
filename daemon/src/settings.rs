@@ -3,8 +3,6 @@ use crate::profile::DEFAULT_PROFILE_NAME;
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use goxlr_ipc::{FirmwareSource, GoXLRCommand, LogLevel};
-use goxlr_types::FaderStrategy;
-use goxlr_types::FaderStrategy::InstantJump;
 use goxlr_types::VodMode;
 use goxlr_types::VodMode::Routable;
 use log::{debug, error, info, warn};
@@ -526,21 +524,6 @@ impl SettingsHandle {
         Routable
     }
 
-    pub async fn get_fader_strategy(&self, device_serial: &str) -> FaderStrategy {
-        let settings = self.settings.read().await;
-        let value = settings
-            .devices
-            .as_ref()
-            .unwrap()
-            .get(device_serial)
-            .map(|d| d.fader_strategy.unwrap_or(InstantJump));
-
-        if let Some(value) = value {
-            return value;
-        }
-        InstantJump
-    }
-
     pub async fn get_sampler_reset_on_clear(&self, device_serial: &str) -> bool {
         let settings = self.settings.read().await;
         settings
@@ -713,17 +696,6 @@ impl SettingsHandle {
         entry.vod_mode = Some(setting);
     }
 
-    pub async fn set_fader_strategy(&self, device_serial: &str, setting: FaderStrategy) {
-        let mut settings = self.settings.write().await;
-        let entry = settings
-            .devices
-            .as_mut()
-            .unwrap()
-            .entry(device_serial.to_owned())
-            .or_insert_with(DeviceSettings::default);
-        entry.fader_strategy = Some(setting);
-    }
-
     pub async fn set_sampler_reset_on_clear(&self, device_serial: &str, setting: bool) {
         let mut settings = self.settings.write().await;
         let entry = settings
@@ -879,9 +851,6 @@ struct DeviceSettings {
     // VoD 'Mode'
     vod_mode: Option<VodMode>,
 
-    // Fader Strategy
-    fader_strategy: Option<FaderStrategy>,
-
     // 'Shutdown' commands..
     shutdown_commands: Vec<GoXLRCommand>,
     sleep_commands: Vec<GoXLRCommand>,
@@ -903,7 +872,6 @@ impl Default for DeviceSettings {
             sampler_fade_duration: Some(500),
 
             vod_mode: Some(Routable),
-            fader_strategy: Some(InstantJump),
 
             shutdown_commands: vec![],
             sleep_commands: vec![],

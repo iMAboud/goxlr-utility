@@ -1,11 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![allow(unsafe_op_in_unsafe_fn)]
-#![allow(
-    clippy::too_many_arguments,
-    clippy::manual_range_contains,
-    clippy::useless_format,
-    clippy::collapsible_if
-)]
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,28 +12,31 @@ use flate2::read::GzDecoder;
 use lazy_static::lazy_static;
 use mslnk::ShellLink;
 use tar::Archive;
-use winreg::RegKey;
 use winreg::enums::HKEY_LOCAL_MACHINE;
+use winreg::RegKey;
 
+use windows::core::PCWSTR;
 use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{
-    BITMAPINFO, BITMAPINFOHEADER, BeginPaint, CreateFontW, CreateRoundRectRgn, DIB_RGB_COLORS,
-    DT_CENTER, DT_LEFT, DT_SINGLELINE, DT_VCENTER, DeleteObject, DrawTextW, EndPaint, FONT_CHARSET,
-    FONT_CLIP_PRECISION, FONT_OUTPUT_PRECISION, FONT_QUALITY, HALFTONE, HDC, InvalidateRect,
-    PAINTSTRUCT, SRCCOPY, SelectObject, SetBkMode, SetStretchBltMode, SetTextColor, SetWindowRgn,
-    StretchDIBits, TRANSPARENT,
+    BeginPaint, CreateFontW, DeleteObject, DrawTextW, EndPaint,
+    InvalidateRect, SelectObject, SetBkMode,
+    SetTextColor, CreateRoundRectRgn, SetWindowRgn, SetStretchBltMode, StretchDIBits,
+    BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS, SRCCOPY,
+    DT_CENTER, DT_LEFT, DT_SINGLELINE, DT_VCENTER,
+    FONT_CHARSET, FONT_CLIP_PRECISION, FONT_OUTPUT_PRECISION, FONT_QUALITY, HDC,
+    PAINTSTRUCT, TRANSPARENT, HALFTONE,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CS_HREDRAW, CS_VREDRAW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
-    GetMessageW, GetSystemMetrics, HTCAPTION, IDC_ARROW, LWA_ALPHA, LoadCursorW, MSG, PostMessageW,
-    PostQuitMessage, RegisterClassW, SM_CXSCREEN, SM_CYSCREEN, SW_MINIMIZE, SW_SHOW, SendMessageW,
-    SetLayeredWindowAttributes, ShowWindow, TranslateMessage, WM_CLOSE, WM_CREATE, WM_DESTROY,
-    WM_ERASEBKGND, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_NCLBUTTONDOWN, WM_PAINT, WM_USER,
-    WNDCLASSW, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_POPUP,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
+    GetSystemMetrics, LoadCursorW, PostMessageW, PostQuitMessage, RegisterClassW,
+    SendMessageW, SetLayeredWindowAttributes, ShowWindow, TranslateMessage,
+    CS_HREDRAW, CS_VREDRAW, HTCAPTION, IDC_ARROW, LWA_ALPHA,
+    MSG, SM_CXSCREEN, SM_CYSCREEN, SW_SHOW, SW_MINIMIZE, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_ERASEBKGND,
+    WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_NCLBUTTONDOWN, WM_PAINT, WM_USER, WNDCLASSW,
+    WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_POPUP,
 };
-use windows::core::PCWSTR;
 
 static PAYLOAD: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/payload.tar.gz"));
 static DEVICE_IMAGE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/goxlr_device.bin"));
@@ -140,8 +137,7 @@ fn main() {
             None,
             Some(instance.into()),
             None,
-        )
-        .unwrap();
+        ).unwrap();
 
         // Start fully opaque
         let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), 255, LWA_ALPHA);
@@ -207,9 +203,7 @@ unsafe extern "system" fn wnd_proc(
             LRESULT(0)
         }
         WM_INSTALL_PROGRESS => {
-            unsafe {
-                let _ = InvalidateRect(Some(hwnd), None, false);
-            }
+            unsafe { let _ = InvalidateRect(Some(hwnd), None, false); }
             LRESULT(0)
         }
         WM_INSTALL_FINISHED => {
@@ -219,9 +213,7 @@ unsafe extern "system" fn wnd_proc(
                 s.progress = 100;
                 s.status_text = String::from("Launching GoXLR...");
             }
-            unsafe {
-                let _ = InvalidateRect(Some(hwnd), None, false);
-            }
+            unsafe { let _ = InvalidateRect(Some(hwnd), None, false); }
             // Launch app, then start fade-out
             launch_and_exit(true);
             let hwnd_u = hwnd.0 as usize;
@@ -259,21 +251,15 @@ unsafe extern "system" fn wnd_proc(
                 s.state = InstallState::Failed;
                 s.status_text = String::from("Installation failed. Please run as Administrator.");
             }
-            unsafe {
-                let _ = InvalidateRect(Some(hwnd), None, false);
-            }
+            unsafe { let _ = InvalidateRect(Some(hwnd), None, false); }
             LRESULT(0)
         }
         WM_CLOSE => {
-            unsafe {
-                let _ = DestroyWindow(hwnd);
-            }
+            unsafe { let _ = DestroyWindow(hwnd); }
             LRESULT(0)
         }
         WM_DESTROY => {
-            unsafe {
-                PostQuitMessage(0);
-            }
+            unsafe { PostQuitMessage(0); }
             LRESULT(0)
         }
         _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
@@ -305,14 +291,7 @@ unsafe fn draw_ui(_hwnd: HWND, hdc: HDC) {
             if d < 200.0 {
                 let factor = (1.0 - d / 200.0).powi(2);
                 let a = (36.0 * factor) as u8;
-                blend_add(
-                    &mut buf,
-                    x,
-                    y,
-                    (a as u32 * 14 / 10) as u8,
-                    0,
-                    (a as u32 * 9 / 10) as u8,
-                );
+                blend_add(&mut buf, x, y, (a as u32 * 14 / 10) as u8, 0, (a as u32 * 9 / 10) as u8);
             }
         }
     }
@@ -343,27 +322,11 @@ unsafe fn draw_ui(_hwnd: HWND, hdc: HDC) {
         let y = cy - 130 + dy;
         let lx = 200 + (t * 60.0) as i32;
         blend_rounded_rect(&mut buf, lx - 12, y - 2, lx + 12, y + 2, 2, 22, 16, 36, 60);
-        blend_pixel(
-            &mut buf,
-            lx + 12,
-            y,
-            247,
-            85,
-            168,
-            (65.0 * (1.0 - (t - 0.5).abs() * 2.0).max(0.0)) as u8,
-        );
+        blend_pixel(&mut buf, lx + 12, y, 247, 85, 168, (65.0 * (1.0 - (t - 0.5).abs() * 2.0).max(0.0)) as u8);
 
         let rx = 640 - (t * 60.0) as i32;
         blend_rounded_rect(&mut buf, rx - 12, y - 2, rx + 12, y + 2, 2, 22, 16, 36, 60);
-        blend_pixel(
-            &mut buf,
-            rx - 12,
-            y,
-            247,
-            85,
-            168,
-            (65.0 * (1.0 - (t - 0.5).abs() * 2.0).max(0.0)) as u8,
-        );
+        blend_pixel(&mut buf, rx - 12, y, 247, 85, 168, (65.0 * (1.0 - (t - 0.5).abs() * 2.0).max(0.0)) as u8);
     }
 
     // 4. Concentric Pedestal Rings (Glowing elliptical rings on floor)
@@ -479,83 +442,23 @@ unsafe fn draw_ui(_hwnd: HWND, hdc: HDC) {
     }
 
     // 8. Window controls: Minimize & Close
-    let min_color = if s.min_hover {
-        (255, 255, 255, 255)
-    } else {
-        (142, 125, 165, 180)
-    };
-    draw_line(
-        &mut buf,
-        MIN_LEFT + 7,
-        28,
-        MIN_RIGHT - 7,
-        28,
-        min_color.0,
-        min_color.1,
-        min_color.2,
-        min_color.3,
-        2.0,
-    );
+    let min_color = if s.min_hover { (255, 255, 255, 255) } else { (142, 125, 165, 180) };
+    draw_line(&mut buf, MIN_LEFT + 7, 28, MIN_RIGHT - 7, 28, min_color.0, min_color.1, min_color.2, min_color.3, 2.0);
 
-    let close_color = if s.close_hover {
-        (239, 68, 68, 255)
-    } else {
-        (142, 125, 165, 180)
-    };
-    draw_line(
-        &mut buf,
-        CLOSE_LEFT + 8,
-        20,
-        CLOSE_RIGHT - 8,
-        34,
-        close_color.0,
-        close_color.1,
-        close_color.2,
-        close_color.3,
-        1.8,
-    );
-    draw_line(
-        &mut buf,
-        CLOSE_RIGHT - 8,
-        20,
-        CLOSE_LEFT + 8,
-        34,
-        close_color.0,
-        close_color.1,
-        close_color.2,
-        close_color.3,
-        1.8,
-    );
+    let close_color = if s.close_hover { (239, 68, 68, 255) } else { (142, 125, 165, 180) };
+    draw_line(&mut buf, CLOSE_LEFT + 8, 20, CLOSE_RIGHT - 8, 34, close_color.0, close_color.1, close_color.2, close_color.3, 1.8);
+    draw_line(&mut buf, CLOSE_RIGHT - 8, 20, CLOSE_LEFT + 8, 34, close_color.0, close_color.1, close_color.2, close_color.3, 1.8);
 
     // 9. Pill Action Button (Bottom Right at 546, 568, 782, 624)
     for d in (1..=14).rev() {
         let alpha = (18.0 * (1.0 - d as f32 / 14.0)) as u8;
-        blend_rounded_rect(
-            &mut buf,
-            BTN_LEFT - d,
-            BTN_TOP - d,
-            BTN_RIGHT + d,
-            BTN_BOTTOM + d,
-            28 + d,
-            168,
-            85,
-            247,
-            alpha,
-        );
+        blend_rounded_rect(&mut buf, BTN_LEFT - d, BTN_TOP - d, BTN_RIGHT + d, BTN_BOTTOM + d, 28 + d, 168, 85, 247, alpha);
     }
 
     match s.state {
         InstallState::Ready => {
-            let (r1, g1, b1) = if s.btn_hover {
-                (193, 116, 255)
-            } else {
-                (176, 93, 248)
-            };
-            let (r2, g2, b2) = if s.btn_hover {
-                (124, 58, 237)
-            } else {
-                (109, 40, 217)
-            };
+            let (r1, g1, b1) = if s.btn_hover { (193, 116, 255) } else { (176, 93, 248) };
+            let (r2, g2, b2) = if s.btn_hover { (124, 58, 237) } else { (109, 40, 217) };
             for y in BTN_TOP..=BTN_BOTTOM {
                 let ty = (y - BTN_TOP) as f32 / (BTN_BOTTOM - BTN_TOP) as f32;
                 for x in BTN_LEFT..=BTN_RIGHT {
@@ -564,9 +467,7 @@ unsafe fn draw_ui(_hwnd: HWND, hdc: HDC) {
                     let r = (r1 as f32 + (r2 as f32 - r1 as f32) * t) as u8;
                     let g = (g1 as f32 + (g2 as f32 - g1 as f32) * t) as u8;
                     let b = (b1 as f32 + (b2 as f32 - b1 as f32) * t) as u8;
-                    blend_rounded_rect_pixel(
-                        &mut buf, x, y, BTN_LEFT, BTN_TOP, BTN_RIGHT, BTN_BOTTOM, 28, r, g, b, 255,
-                    );
+                    blend_rounded_rect_pixel(&mut buf, x, y, BTN_LEFT, BTN_TOP, BTN_RIGHT, BTN_BOTTOM, 28, r, g, b, 255);
                 }
             }
             // Download Tray icon on button: tray [ \_/ ] + down arrow
@@ -585,9 +486,7 @@ unsafe fn draw_ui(_hwnd: HWND, hdc: HDC) {
         }
         InstallState::Installing => {
             // Dark track
-            blend_rounded_rect(
-                &mut buf, BTN_LEFT, BTN_TOP, BTN_RIGHT, BTN_BOTTOM, 28, 45, 23, 70, 255,
-            );
+            blend_rounded_rect(&mut buf, BTN_LEFT, BTN_TOP, BTN_RIGHT, BTN_BOTTOM, 28, 45, 23, 70, 255);
             // Progress fill
             let fill_w = ((BTN_RIGHT - BTN_LEFT) * (s.progress as i32)) / 100;
             if fill_w > 0 {
@@ -600,43 +499,24 @@ unsafe fn draw_ui(_hwnd: HWND, hdc: HDC) {
                         let r = (168.0 + (124.0 - 168.0) * t) as u8;
                         let g = (85.0 + (58.0 - 85.0) * t) as u8;
                         let b = (247.0 + (237.0 - 247.0) * t) as u8;
-                        blend_rounded_rect_pixel(
-                            &mut buf, x, y, BTN_LEFT, BTN_TOP, BTN_RIGHT, BTN_BOTTOM, 28, r, g, b,
-                            255,
-                        );
+                        blend_rounded_rect_pixel(&mut buf, x, y, BTN_LEFT, BTN_TOP, BTN_RIGHT, BTN_BOTTOM, 28, r, g, b, 255);
                     }
                 }
             }
         }
         InstallState::Completed => {
-            blend_rounded_rect(
-                &mut buf, BTN_LEFT, BTN_TOP, BTN_RIGHT, BTN_BOTTOM, 28, 34, 197, 94, 255,
-            );
+            blend_rounded_rect(&mut buf, BTN_LEFT, BTN_TOP, BTN_RIGHT, BTN_BOTTOM, 28, 34, 197, 94, 255);
             draw_line(&mut buf, 746, 596, 758, 596, 255, 255, 255, 255, 2.0);
             draw_line(&mut buf, 753, 591, 758, 596, 255, 255, 255, 255, 2.0);
             draw_line(&mut buf, 753, 601, 758, 596, 255, 255, 255, 255, 2.0);
         }
         InstallState::Failed => {
-            blend_rounded_rect(
-                &mut buf, BTN_LEFT, BTN_TOP, BTN_RIGHT, BTN_BOTTOM, 28, 239, 68, 68, 255,
-            );
+            blend_rounded_rect(&mut buf, BTN_LEFT, BTN_TOP, BTN_RIGHT, BTN_BOTTOM, 28, 239, 68, 68, 255);
         }
     }
 
     // 10. Outer window rim (1px subtle dark purple border around entire window)
-    draw_rounded_border(
-        &mut buf,
-        0,
-        0,
-        WIN_WIDTH - 1,
-        WIN_HEIGHT - 1,
-        20,
-        168,
-        85,
-        247,
-        45,
-        1.0,
-    );
+    draw_rounded_border(&mut buf, 0, 0, WIN_WIDTH - 1, WIN_HEIGHT - 1, 20, 168, 85, 247, 45, 1.0);
 
     // Blit complete rendered frame to window HDC
     let bmi = BITMAPINFO {
@@ -659,14 +539,8 @@ unsafe fn draw_ui(_hwnd: HWND, hdc: HDC) {
     SetStretchBltMode(hdc, HALFTONE);
     StretchDIBits(
         hdc,
-        0,
-        0,
-        WIN_WIDTH,
-        WIN_HEIGHT,
-        0,
-        0,
-        WIN_WIDTH,
-        WIN_HEIGHT,
+        0, 0, WIN_WIDTH, WIN_HEIGHT,
+        0, 0, WIN_WIDTH, WIN_HEIGHT,
         Some(buf.as_ptr() as *const _),
         &bmi,
         DIB_RGB_COLORS,
@@ -675,100 +549,34 @@ unsafe fn draw_ui(_hwnd: HWND, hdc: HDC) {
 
     // 11. ClearType Typography Overlay via Win32 GDI DrawTextW
     let font_title = CreateFontW(
-        -16,
-        0,
-        0,
-        0,
-        700,
-        0,
-        0,
-        0,
-        FONT_CHARSET(0),
-        FONT_OUTPUT_PRECISION(0),
-        FONT_CLIP_PRECISION(0),
-        FONT_QUALITY(5),
-        0,
-        PCWSTR::from_raw(to_wide("Segoe UI").as_ptr()),
+        -16, 0, 0, 0, 700, 0, 0, 0,
+        FONT_CHARSET(0), FONT_OUTPUT_PRECISION(0), FONT_CLIP_PRECISION(0), FONT_QUALITY(5),
+        0, PCWSTR::from_raw(to_wide("Segoe UI").as_ptr())
     );
     let font_subtitle = CreateFontW(
-        -13,
-        0,
-        0,
-        0,
-        400,
-        0,
-        0,
-        0,
-        FONT_CHARSET(0),
-        FONT_OUTPUT_PRECISION(0),
-        FONT_CLIP_PRECISION(0),
-        FONT_QUALITY(5),
-        0,
-        PCWSTR::from_raw(to_wide("Segoe UI").as_ptr()),
+        -13, 0, 0, 0, 400, 0, 0, 0,
+        FONT_CHARSET(0), FONT_OUTPUT_PRECISION(0), FONT_CLIP_PRECISION(0), FONT_QUALITY(5),
+        0, PCWSTR::from_raw(to_wide("Segoe UI").as_ptr())
     );
     let font_heading = CreateFontW(
-        -18,
-        0,
-        0,
-        0,
-        700,
-        0,
-        0,
-        0,
-        FONT_CHARSET(0),
-        FONT_OUTPUT_PRECISION(0),
-        FONT_CLIP_PRECISION(0),
-        FONT_QUALITY(5),
-        0,
-        PCWSTR::from_raw(to_wide("Segoe UI").as_ptr()),
+        -18, 0, 0, 0, 700, 0, 0, 0,
+        FONT_CHARSET(0), FONT_OUTPUT_PRECISION(0), FONT_CLIP_PRECISION(0), FONT_QUALITY(5),
+        0, PCWSTR::from_raw(to_wide("Segoe UI").as_ptr())
     );
     let font_body = CreateFontW(
-        -13,
-        0,
-        0,
-        0,
-        400,
-        0,
-        0,
-        0,
-        FONT_CHARSET(0),
-        FONT_OUTPUT_PRECISION(0),
-        FONT_CLIP_PRECISION(0),
-        FONT_QUALITY(5),
-        0,
-        PCWSTR::from_raw(to_wide("Segoe UI").as_ptr()),
+        -13, 0, 0, 0, 400, 0, 0, 0,
+        FONT_CHARSET(0), FONT_OUTPUT_PRECISION(0), FONT_CLIP_PRECISION(0), FONT_QUALITY(5),
+        0, PCWSTR::from_raw(to_wide("Segoe UI").as_ptr())
     );
     let font_btn = CreateFontW(
-        -15,
-        0,
-        0,
-        0,
-        700,
-        0,
-        0,
-        0,
-        FONT_CHARSET(0),
-        FONT_OUTPUT_PRECISION(0),
-        FONT_CLIP_PRECISION(0),
-        FONT_QUALITY(5),
-        0,
-        PCWSTR::from_raw(to_wide("Segoe UI").as_ptr()),
+        -15, 0, 0, 0, 700, 0, 0, 0,
+        FONT_CHARSET(0), FONT_OUTPUT_PRECISION(0), FONT_CLIP_PRECISION(0), FONT_QUALITY(5),
+        0, PCWSTR::from_raw(to_wide("Segoe UI").as_ptr())
     );
     let font_status = CreateFontW(
-        -13,
-        0,
-        0,
-        0,
-        500,
-        0,
-        0,
-        0,
-        FONT_CHARSET(0),
-        FONT_OUTPUT_PRECISION(0),
-        FONT_CLIP_PRECISION(0),
-        FONT_QUALITY(5),
-        0,
-        PCWSTR::from_raw(to_wide("Segoe UI").as_ptr()),
+        -13, 0, 0, 0, 500, 0, 0, 0,
+        FONT_CHARSET(0), FONT_OUTPUT_PRECISION(0), FONT_CLIP_PRECISION(0), FONT_QUALITY(5),
+        0, PCWSTR::from_raw(to_wide("Segoe UI").as_ptr())
     );
 
     SetBkMode(hdc, TRANSPARENT);
@@ -776,119 +584,45 @@ unsafe fn draw_ui(_hwnd: HWND, hdc: HDC) {
     // Title Bar Text
     let old_font = SelectObject(hdc, font_title.into());
     SetTextColor(hdc, COLORREF(0x00FFFFFF)); // Bold White
-    let mut title_rc = RECT {
-        left: 66,
-        top: 16,
-        right: 135,
-        bottom: 40,
-    };
+    let mut title_rc = RECT { left: 66, top: 16, right: 135, bottom: 40 };
     let mut title_text = to_wide("GoXLR");
-    DrawTextW(
-        hdc,
-        &mut title_text,
-        &mut title_rc,
-        DT_LEFT | DT_VCENTER | DT_SINGLELINE,
-    );
+    DrawTextW(hdc, &mut title_text, &mut title_rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
     SelectObject(hdc, font_subtitle.into());
     SetTextColor(hdc, COLORREF(0x00A08090)); // Muted lavender
-    let mut sub_rc = RECT {
-        left: 145,
-        top: 18,
-        right: 400,
-        bottom: 40,
-    };
+    let mut sub_rc = RECT { left: 145, top: 18, right: 400, bottom: 40 };
     let mut sub_text = to_wide("v1.2.4 Standalone Setup");
-    DrawTextW(
-        hdc,
-        &mut sub_text,
-        &mut sub_rc,
-        DT_LEFT | DT_VCENTER | DT_SINGLELINE,
-    );
+    DrawTextW(hdc, &mut sub_text, &mut sub_rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
     // Lower Card Content
     SelectObject(hdc, font_heading.into());
     SetTextColor(hdc, COLORREF(0x00FFFFFF));
-    let mut card_title_rc = RECT {
-        left: 96,
-        top: 416,
-        right: 760,
-        bottom: 444,
-    };
+    let mut card_title_rc = RECT { left: 96, top: 416, right: 760, bottom: 444 };
     let mut card_title_text = to_wide("GoXLR Native Driver & Utility");
-    DrawTextW(
-        hdc,
-        &mut card_title_text,
-        &mut card_title_rc,
-        DT_LEFT | DT_SINGLELINE,
-    );
+    DrawTextW(hdc, &mut card_title_text, &mut card_title_rc, DT_LEFT | DT_SINGLELINE);
 
     SelectObject(hdc, font_body.into());
     SetTextColor(hdc, COLORREF(0x00A89EA8));
-    let mut card_d1_rc = RECT {
-        left: 96,
-        top: 448,
-        right: 760,
-        bottom: 468,
-    };
-    let mut card_d1_text =
-        to_wide("Installs official TC-Helicon Audio Drivers & GoXLR Utility with one click.");
-    DrawTextW(
-        hdc,
-        &mut card_d1_text,
-        &mut card_d1_rc,
-        DT_LEFT | DT_SINGLELINE,
-    );
+    let mut card_d1_rc = RECT { left: 96, top: 448, right: 760, bottom: 468 };
+    let mut card_d1_text = to_wide("Installs official TC-Helicon Audio Drivers & GoXLR Utility with one click.");
+    DrawTextW(hdc, &mut card_d1_text, &mut card_d1_rc, DT_LEFT | DT_SINGLELINE);
 
-    let mut card_d2_rc = RECT {
-        left: 96,
-        top: 470,
-        right: 760,
-        bottom: 490,
-    };
-    let mut card_d2_text =
-        to_wide("Includes automated device configuration and Start menu shortcuts.");
-    DrawTextW(
-        hdc,
-        &mut card_d2_text,
-        &mut card_d2_rc,
-        DT_LEFT | DT_SINGLELINE,
-    );
+    let mut card_d2_rc = RECT { left: 96, top: 470, right: 760, bottom: 490 };
+    let mut card_d2_text = to_wide("Includes automated device configuration and Start menu shortcuts.");
+    DrawTextW(hdc, &mut card_d2_text, &mut card_d2_rc, DT_LEFT | DT_SINGLELINE);
 
     // Footer Status Text (NO settings gear)
     SelectObject(hdc, font_status.into());
     let (status_str, status_color) = match s.state {
-        InstallState::Ready => (
-            format!("v1.2.4   |   Ready to install"),
-            COLORREF(0x009E7D8A),
-        ),
-        InstallState::Installing => (
-            format!("v1.2.4   |   {} ({}%)", s.status_text, s.progress),
-            COLORREF(0x00FC84C0),
-        ),
-        InstallState::Completed => (
-            format!("v1.2.4   |   Installation complete! Launching..."),
-            COLORREF(0x005EC522),
-        ),
-        InstallState::Failed => (
-            format!("v1.2.4   |   Installation failed. Please run as Administrator."),
-            COLORREF(0x004444EF),
-        ),
+        InstallState::Ready => (format!("v1.2.4   |   Ready to install"), COLORREF(0x009E7D8A)),
+        InstallState::Installing => (format!("v1.2.4   |   {} ({}%)", s.status_text, s.progress), COLORREF(0x00FC84C0)),
+        InstallState::Completed => (format!("v1.2.4   |   Installation complete! Launching..."), COLORREF(0x005EC522)),
+        InstallState::Failed => (format!("v1.2.4   |   Installation failed. Please run as Administrator."), COLORREF(0x004444EF)),
     };
     SetTextColor(hdc, status_color);
-    let mut footer_rc = RECT {
-        left: 58,
-        top: 584,
-        right: 530,
-        bottom: 608,
-    };
+    let mut footer_rc = RECT { left: 58, top: 584, right: 530, bottom: 608 };
     let mut footer_text = to_wide(&status_str);
-    DrawTextW(
-        hdc,
-        &mut footer_text,
-        &mut footer_rc,
-        DT_LEFT | DT_VCENTER | DT_SINGLELINE,
-    );
+    DrawTextW(hdc, &mut footer_text, &mut footer_rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
     // Button Label
     SelectObject(hdc, font_btn.into());
@@ -900,26 +634,13 @@ unsafe fn draw_ui(_hwnd: HWND, hdc: HDC) {
         InstallState::Failed => "Close",
     };
     let mut btn_text_rc = RECT {
-        left: if s.state == InstallState::Ready {
-            594
-        } else {
-            BTN_LEFT
-        },
+        left: if s.state == InstallState::Ready { 594 } else { BTN_LEFT },
         top: BTN_TOP,
-        right: if s.state == InstallState::Ready {
-            740
-        } else {
-            BTN_RIGHT
-        },
+        right: if s.state == InstallState::Ready { 740 } else { BTN_RIGHT },
         bottom: BTN_BOTTOM,
     };
     let mut btn_text_wide = to_wide(btn_label);
-    DrawTextW(
-        hdc,
-        &mut btn_text_wide,
-        &mut btn_text_rc,
-        DT_CENTER | DT_VCENTER | DT_SINGLELINE,
-    );
+    DrawTextW(hdc, &mut btn_text_wide, &mut btn_text_rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
     // Clean up fonts
     SelectObject(hdc, old_font);
@@ -932,9 +653,7 @@ unsafe fn draw_ui(_hwnd: HWND, hdc: HDC) {
 }
 
 fn blend_pixel(buf: &mut [u32], x: i32, y: i32, b: u8, g: u8, r: u8, a: u8) {
-    if x < 0 || x >= WIN_WIDTH || y < 0 || y >= WIN_HEIGHT || a == 0 {
-        return;
-    }
+    if x < 0 || x >= WIN_WIDTH || y < 0 || y >= WIN_HEIGHT || a == 0 { return; }
     let idx = (y * WIN_WIDTH + x) as usize;
     if a == 255 {
         buf[idx] = (b as u32) | ((g as u32) << 8) | ((r as u32) << 16) | 0xFF000000;
@@ -952,9 +671,7 @@ fn blend_pixel(buf: &mut [u32], x: i32, y: i32, b: u8, g: u8, r: u8, a: u8) {
 }
 
 fn blend_add(buf: &mut [u32], x: i32, y: i32, b: u8, g: u8, r: u8) {
-    if x < 0 || x >= WIN_WIDTH || y < 0 || y >= WIN_HEIGHT {
-        return;
-    }
+    if x < 0 || x >= WIN_WIDTH || y < 0 || y >= WIN_HEIGHT { return; }
     let idx = (y * WIN_WIDTH + x) as usize;
     let cur = buf[idx];
     let cur_b = (cur & 0xFF) + b as u32;
@@ -964,9 +681,7 @@ fn blend_add(buf: &mut [u32], x: i32, y: i32, b: u8, g: u8, r: u8) {
 }
 
 fn blend_premultiplied(buf: &mut [u32], x: i32, y: i32, pb: u8, pg: u8, pr: u8, a: u8) {
-    if x < 0 || x >= WIN_WIDTH || y < 0 || y >= WIN_HEIGHT || a == 0 {
-        return;
-    }
+    if x < 0 || x >= WIN_WIDTH || y < 0 || y >= WIN_HEIGHT || a == 0 { return; }
     let idx = (y * WIN_WIDTH + x) as usize;
     let cur = buf[idx];
     let cur_b = cur & 0xFF;
@@ -981,32 +696,13 @@ fn blend_premultiplied(buf: &mut [u32], x: i32, y: i32, pb: u8, pg: u8, pr: u8, 
 
 fn blend_rounded_rect_pixel(
     buf: &mut [u32],
-    x: i32,
-    y: i32,
-    x0: i32,
-    y0: i32,
-    x1: i32,
-    y1: i32,
+    x: i32, y: i32,
+    x0: i32, y0: i32, x1: i32, y1: i32,
     radius: i32,
-    r: u8,
-    g: u8,
-    b: u8,
-    alpha: u8,
+    r: u8, g: u8, b: u8, alpha: u8,
 ) {
-    let cx = if x < x0 + radius {
-        x0 + radius
-    } else if x > x1 - radius {
-        x1 - radius
-    } else {
-        x
-    };
-    let cy = if y < y0 + radius {
-        y0 + radius
-    } else if y > y1 - radius {
-        y1 - radius
-    } else {
-        y
-    };
+    let cx = if x < x0 + radius { x0 + radius } else if x > x1 - radius { x1 - radius } else { x };
+    let cy = if y < y0 + radius { y0 + radius } else if y > y1 - radius { y1 - radius } else { y };
     let dx = (x - cx) as f32;
     let dy = (y - cy) as f32;
     let dist = (dx * dx + dy * dy).sqrt();
@@ -1021,15 +717,9 @@ fn blend_rounded_rect_pixel(
 
 fn blend_rounded_rect(
     buf: &mut [u32],
-    x0: i32,
-    y0: i32,
-    x1: i32,
-    y1: i32,
+    x0: i32, y0: i32, x1: i32, y1: i32,
     radius: i32,
-    r: u8,
-    g: u8,
-    b: u8,
-    alpha: u8,
+    r: u8, g: u8, b: u8, alpha: u8,
 ) {
     for y in y0.max(0)..=y1.min(WIN_HEIGHT - 1) {
         for x in x0.max(0)..=x1.min(WIN_WIDTH - 1) {
@@ -1040,41 +730,22 @@ fn blend_rounded_rect(
 
 fn draw_rounded_border(
     buf: &mut [u32],
-    x0: i32,
-    y0: i32,
-    x1: i32,
-    y1: i32,
+    x0: i32, y0: i32, x1: i32, y1: i32,
     radius: i32,
-    r: u8,
-    g: u8,
-    b: u8,
-    alpha: u8,
+    r: u8, g: u8, b: u8, alpha: u8,
     width: f32,
 ) {
     for y in y0.max(0)..=y1.min(WIN_HEIGHT - 1) {
         for x in x0.max(0)..=x1.min(WIN_WIDTH - 1) {
-            let cx = if x < x0 + radius {
-                x0 + radius
-            } else if x > x1 - radius {
-                x1 - radius
-            } else {
-                x
-            };
-            let cy = if y < y0 + radius {
-                y0 + radius
-            } else if y > y1 - radius {
-                y1 - radius
-            } else {
-                y
-            };
+            let cx = if x < x0 + radius { x0 + radius } else if x > x1 - radius { x1 - radius } else { x };
+            let cy = if y < y0 + radius { y0 + radius } else if y > y1 - radius { y1 - radius } else { y };
             let dx = (x - cx) as f32;
             let dy = (y - cy) as f32;
             let dist = (dx * dx + dy * dy).sqrt();
             let target_r = radius as f32 - width * 0.5;
             let diff = (dist - target_r).abs();
             if diff <= width * 0.5 + 0.5 {
-                let edge_a =
-                    (alpha as f32 * (1.0 - (diff - (width * 0.5 - 0.5)).max(0.0))).max(0.0) as u8;
+                let edge_a = (alpha as f32 * (1.0 - (diff - (width * 0.5 - 0.5)).max(0.0))).max(0.0) as u8;
                 blend_pixel(buf, x, y, b, g, r, edge_a);
             }
         }
@@ -1083,14 +754,8 @@ fn draw_rounded_border(
 
 fn draw_line(
     buf: &mut [u32],
-    x0: i32,
-    y0: i32,
-    x1: i32,
-    y1: i32,
-    r: u8,
-    g: u8,
-    b: u8,
-    alpha: u8,
+    x0: i32, y0: i32, x1: i32, y1: i32,
+    r: u8, g: u8, b: u8, alpha: u8,
     thickness: f32,
 ) {
     let min_x = (x0.min(x1) - thickness.ceil() as i32 - 1).max(0);
@@ -1129,35 +794,28 @@ fn draw_line(
 fn handle_mouse_move(hwnd: HWND, x: i32, y: i32) {
     let mut s = GLOBAL_STATE.lock().unwrap();
 
-    let close_hover =
-        (CLOSE_LEFT..=CLOSE_RIGHT).contains(&x) && (CLOSE_TOP..=CLOSE_BOTTOM).contains(&y);
-    let min_hover = (MIN_LEFT..=MIN_RIGHT).contains(&x) && (MIN_TOP..=MIN_BOTTOM).contains(&y);
-    let btn_hover = (BTN_LEFT..=BTN_RIGHT).contains(&x) && (BTN_TOP..=BTN_BOTTOM).contains(&y);
+    let close_hover = x >= CLOSE_LEFT && x <= CLOSE_RIGHT && y >= CLOSE_TOP && y <= CLOSE_BOTTOM;
+    let min_hover = x >= MIN_LEFT && x <= MIN_RIGHT && y >= MIN_TOP && y <= MIN_BOTTOM;
+    let btn_hover = x >= BTN_LEFT && x <= BTN_RIGHT && y >= BTN_TOP && y <= BTN_BOTTOM;
 
     if s.close_hover != close_hover || s.min_hover != min_hover || s.btn_hover != btn_hover {
         s.close_hover = close_hover;
         s.min_hover = min_hover;
         s.btn_hover = btn_hover;
-        unsafe {
-            let _ = InvalidateRect(Some(hwnd), None, false);
-        }
+        unsafe { let _ = InvalidateRect(Some(hwnd), None, false); }
     }
 }
 
 fn handle_click(hwnd: HWND, x: i32, y: i32) {
     // Close button
-    if (CLOSE_LEFT..=CLOSE_RIGHT).contains(&x) && (CLOSE_TOP..=CLOSE_BOTTOM).contains(&y) {
-        unsafe {
-            SendMessageW(hwnd, WM_CLOSE, Some(WPARAM(0)), Some(LPARAM(0)));
-        }
+    if x >= CLOSE_LEFT && x <= CLOSE_RIGHT && y >= CLOSE_TOP && y <= CLOSE_BOTTOM {
+        unsafe { SendMessageW(hwnd, WM_CLOSE, Some(WPARAM(0)), Some(LPARAM(0))); }
         return;
     }
 
     // Minimize button
-    if (MIN_LEFT..=MIN_RIGHT).contains(&x) && (MIN_TOP..=MIN_BOTTOM).contains(&y) {
-        unsafe {
-            let _ = ShowWindow(hwnd, SW_MINIMIZE);
-        }
+    if x >= MIN_LEFT && x <= MIN_RIGHT && y >= MIN_TOP && y <= MIN_BOTTOM {
+        unsafe { let _ = ShowWindow(hwnd, SW_MINIMIZE); }
         return;
     }
 
@@ -1168,16 +826,14 @@ fn handle_click(hwnd: HWND, x: i32, y: i32) {
         let mut s = GLOBAL_STATE.lock().unwrap();
 
         // Pill Action Button
-        if (BTN_LEFT..=BTN_RIGHT).contains(&x) && (BTN_TOP..=BTN_BOTTOM).contains(&y) {
+        if x >= BTN_LEFT && x <= BTN_RIGHT && y >= BTN_TOP && y <= BTN_BOTTOM {
             match s.state {
                 InstallState::Ready => {
                     s.state = InstallState::Installing;
                     s.progress = 5;
                     s.status_text = String::from("Stopping active GoXLR services...");
                     should_start_install = true;
-                    unsafe {
-                        let _ = InvalidateRect(Some(hwnd), None, false);
-                    }
+                    unsafe { let _ = InvalidateRect(Some(hwnd), None, false); }
                 }
                 InstallState::Completed => {
                     launch_and_exit(true);
@@ -1192,9 +848,7 @@ fn handle_click(hwnd: HWND, x: i32, y: i32) {
     }
 
     if should_exit {
-        unsafe {
-            SendMessageW(hwnd, WM_CLOSE, Some(WPARAM(0)), Some(LPARAM(0)));
-        }
+        unsafe { SendMessageW(hwnd, WM_CLOSE, Some(WPARAM(0)), Some(LPARAM(0))); }
     } else if should_start_install {
         let hwnd_u = hwnd.0 as usize;
         thread::spawn(move || {
@@ -1222,12 +876,7 @@ fn set_progress(hwnd_u: usize, target: u32, status: &str) {
                 s.progress = current + i;
             }
             unsafe {
-                let _ = PostMessageW(
-                    Some(HWND(hwnd_u as *mut _)),
-                    WM_INSTALL_PROGRESS,
-                    WPARAM(0),
-                    LPARAM(0),
-                );
+                let _ = PostMessageW(Some(HWND(hwnd_u as *mut _)), WM_INSTALL_PROGRESS, WPARAM(0), LPARAM(0));
             }
             thread::sleep(Duration::from_millis(25));
         }
@@ -1237,12 +886,7 @@ fn set_progress(hwnd_u: usize, target: u32, status: &str) {
             s.progress = target;
         }
         unsafe {
-            let _ = PostMessageW(
-                Some(HWND(hwnd_u as *mut _)),
-                WM_INSTALL_PROGRESS,
-                WPARAM(0),
-                LPARAM(0),
-            );
+            let _ = PostMessageW(Some(HWND(hwnd_u as *mut _)), WM_INSTALL_PROGRESS, WPARAM(0), LPARAM(0));
         }
     }
 }
@@ -1252,36 +896,22 @@ fn run_installation(hwnd_u: usize, autostart: bool, use_app: bool, install_drive
 
     // 1. Stop existing daemon & apps (CREATE_NO_WINDOW = 0x08000000 to prevent console flicker)
     set_progress(hwnd_u, 10, "Closing running GoXLR processes...");
-    let _ = Command::new("taskkill")
-        .args(["/F", "/IM", "goxlr-daemon.exe"])
-        .creation_flags(0x08000000)
-        .output();
-    let _ = Command::new("taskkill")
-        .args(["/F", "/IM", "goxlr-utility-ui.exe"])
-        .creation_flags(0x08000000)
-        .output();
-    let _ = Command::new("taskkill")
-        .args(["/F", "/IM", "GoXLRAudioCplApp.exe"])
-        .creation_flags(0x08000000)
-        .output();
+    let _ = Command::new("taskkill").args(["/F", "/IM", "goxlr-daemon.exe"]).creation_flags(0x08000000).output();
+    let _ = Command::new("taskkill").args(["/F", "/IM", "goxlr-utility-ui.exe"]).creation_flags(0x08000000).output();
+    let _ = Command::new("taskkill").args(["/F", "/IM", "GoXLRAudioCplApp.exe"]).creation_flags(0x08000000).output();
     thread::sleep(Duration::from_millis(500));
 
     // 2. Target directories
-    let program_files =
-        std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".into());
+    let program_files = std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".into());
     let app_dir = PathBuf::from(&program_files).join("GoXLR Utility");
     let driver_dir = PathBuf::from(&program_files).join(r"TC-Helicon\GoXLR_Audio_Driver\x64");
 
-    if fs::create_dir_all(&app_dir).is_err() {
-        unsafe {
-            let _ = PostMessageW(Some(hwnd), WM_INSTALL_FAILED, WPARAM(0), LPARAM(0));
-        }
+    if let Err(_) = fs::create_dir_all(&app_dir) {
+        unsafe { let _ = PostMessageW(Some(hwnd), WM_INSTALL_FAILED, WPARAM(0), LPARAM(0)); }
         return;
     }
-    if fs::create_dir_all(&driver_dir).is_err() {
-        unsafe {
-            let _ = PostMessageW(Some(hwnd), WM_INSTALL_FAILED, WPARAM(0), LPARAM(0));
-        }
+    if let Err(_) = fs::create_dir_all(&driver_dir) {
+        unsafe { let _ = PostMessageW(Some(hwnd), WM_INSTALL_FAILED, WPARAM(0), LPARAM(0)); }
         return;
     }
 
@@ -1291,23 +921,25 @@ fn run_installation(hwnd_u: usize, autostart: bool, use_app: bool, install_drive
     let mut archive = Archive::new(gz);
 
     if let Ok(entries) = archive.entries() {
-        for mut file in entries.flatten() {
-            if let Ok(path) = file.path() {
-                let path_str = path.to_string_lossy();
-                if path_str.starts_with("app/") {
-                    let rel = path_str.trim_start_matches("app/");
-                    let dest = app_dir.join(rel);
-                    if let Some(parent) = dest.parent() {
-                        let _ = fs::create_dir_all(parent);
+        for entry in entries {
+            if let Ok(mut file) = entry {
+                if let Ok(path) = file.path() {
+                    let path_str = path.to_string_lossy();
+                    if path_str.starts_with("app/") {
+                        let rel = path_str.trim_start_matches("app/");
+                        let dest = app_dir.join(rel);
+                        if let Some(parent) = dest.parent() {
+                            let _ = fs::create_dir_all(parent);
+                        }
+                        let _ = file.unpack(&dest);
+                    } else if path_str.starts_with("driver/") {
+                        let rel = path_str.trim_start_matches("driver/");
+                        let dest = driver_dir.join(rel);
+                        if let Some(parent) = dest.parent() {
+                            let _ = fs::create_dir_all(parent);
+                        }
+                        let _ = file.unpack(&dest);
                     }
-                    let _ = file.unpack(&dest);
-                } else if path_str.starts_with("driver/") {
-                    let rel = path_str.trim_start_matches("driver/");
-                    let dest = driver_dir.join(rel);
-                    if let Some(parent) = dest.parent() {
-                        let _ = fs::create_dir_all(parent);
-                    }
-                    let _ = file.unpack(&dest);
                 }
             }
         }
@@ -1340,11 +972,7 @@ fn run_installation(hwnd_u: usize, autostart: bool, use_app: bool, install_drive
         thread::sleep(Duration::from_millis(2000));
 
         // Register COM and ASIO registry entries
-        set_progress(
-            hwnd_u,
-            70,
-            "Registering Audio Driver COM & ASIO interfaces...",
-        );
+        set_progress(hwnd_u, 70, "Registering Audio Driver COM & ASIO interfaces...");
         register_audio_driver(&driver_dir);
     }
 
@@ -1385,23 +1013,17 @@ fn register_audio_driver(driver_dir: &Path) {
 
     // CLSID 64-bit API
     if dll64.exists() {
-        if let Ok((key, _)) =
-            hklm.create_subkey(r"SOFTWARE\Classes\CLSID\{024D0372-641F-4B7B-8140-F4DFE458C982}")
-        {
+        if let Ok((key, _)) = hklm.create_subkey(r"SOFTWARE\Classes\CLSID\{024D0372-641F-4B7B-8140-F4DFE458C982}") {
             let _ = key.set_value("", &"TUSBAudio API DLL");
         }
-        if let Ok((key, _)) = hklm.create_subkey(
-            r"SOFTWARE\Classes\CLSID\{024D0372-641F-4B7B-8140-F4DFE458C982}\InprocServer32",
-        ) {
+        if let Ok((key, _)) = hklm.create_subkey(r"SOFTWARE\Classes\CLSID\{024D0372-641F-4B7B-8140-F4DFE458C982}\InprocServer32") {
             let _ = key.set_value("", &dll64.to_string_lossy().to_string());
         }
     }
 
     // CLSID 32-bit API
     if dll32.exists() {
-        if let Ok((key, _)) = hklm.create_subkey(
-            r"SOFTWARE\WOW6432Node\Classes\CLSID\{024D0372-641F-4B7B-8140-F4DFE458C982}",
-        ) {
+        if let Ok((key, _)) = hklm.create_subkey(r"SOFTWARE\WOW6432Node\Classes\CLSID\{024D0372-641F-4B7B-8140-F4DFE458C982}") {
             let _ = key.set_value("", &"TUSBAudio API DLL");
         }
         if let Ok((key, _)) = hklm.create_subkey(r"SOFTWARE\WOW6432Node\Classes\CLSID\{024D0372-641F-4B7B-8140-F4DFE458C982}\InprocServer32") {
@@ -1411,14 +1033,10 @@ fn register_audio_driver(driver_dir: &Path) {
 
     // ASIO 64-bit
     if asio64.exists() {
-        if let Ok((key, _)) =
-            hklm.create_subkey(r"SOFTWARE\Classes\CLSID\{058274C2-505D-456B-BA18-D77DFFAF0BF7}")
-        {
+        if let Ok((key, _)) = hklm.create_subkey(r"SOFTWARE\Classes\CLSID\{058274C2-505D-456B-BA18-D77DFFAF0BF7}") {
             let _ = key.set_value("", &"GoXLR ASIO Driver");
         }
-        if let Ok((key, _)) = hklm.create_subkey(
-            r"SOFTWARE\Classes\CLSID\{058274C2-505D-456B-BA18-D77DFFAF0BF7}\InprocServer32",
-        ) {
+        if let Ok((key, _)) = hklm.create_subkey(r"SOFTWARE\Classes\CLSID\{058274C2-505D-456B-BA18-D77DFFAF0BF7}\InprocServer32") {
             let _ = key.set_value("", &asio64.to_string_lossy().to_string());
             let _ = key.set_value("ThreadingModel", &"Apartment");
         }
@@ -1430,9 +1048,7 @@ fn register_audio_driver(driver_dir: &Path) {
 
     // ASIO 32-bit
     if asio32.exists() {
-        if let Ok((key, _)) = hklm.create_subkey(
-            r"SOFTWARE\WOW6432Node\Classes\CLSID\{058274C2-505D-456B-BA18-D77DFFAF0BF7}",
-        ) {
+        if let Ok((key, _)) = hklm.create_subkey(r"SOFTWARE\WOW6432Node\Classes\CLSID\{058274C2-505D-456B-BA18-D77DFFAF0BF7}") {
             let _ = key.set_value("", &"GoXLR ASIO Driver");
         }
         if let Ok((key, _)) = hklm.create_subkey(r"SOFTWARE\WOW6432Node\Classes\CLSID\{058274C2-505D-456B-BA18-D77DFFAF0BF7}\InprocServer32") {
@@ -1448,8 +1064,8 @@ fn register_audio_driver(driver_dir: &Path) {
 
 fn setup_shortcuts(app_dir: &Path, autostart: bool) {
     let program_data = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".into());
-    let start_menu_folder =
-        PathBuf::from(&program_data).join(r"Microsoft\Windows\Start Menu\Programs\GoXLR Utility");
+    let start_menu_folder = PathBuf::from(&program_data)
+        .join(r"Microsoft\Windows\Start Menu\Programs\GoXLR Utility");
 
     let _ = fs::create_dir_all(&start_menu_folder);
     let launcher_exe = app_dir.join("goxlr-launcher.exe");
@@ -1464,8 +1080,8 @@ fn setup_shortcuts(app_dir: &Path, autostart: bool) {
 
     // User Startup
     if let Ok(appdata) = std::env::var("APPDATA") {
-        let startup_dir =
-            PathBuf::from(&appdata).join(r"Microsoft\Windows\Start Menu\Programs\Startup");
+        let startup_dir = PathBuf::from(&appdata)
+            .join(r"Microsoft\Windows\Start Menu\Programs\Startup");
         let startup_lnk = startup_dir.join("GoXLR Utility.lnk");
 
         if autostart {
@@ -1492,32 +1108,28 @@ fn setup_registry(app_dir: &Path, autostart: bool, use_app: bool) {
     }
 
     // Uninstall key
-    if let Ok((key, _)) =
-        hklm.create_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR Utility")
-    {
+    if let Ok((key, _)) = hklm.create_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR Utility") {
         let daemon = app_dir.join("goxlr-daemon.exe");
         let _ = key.set_value("DisplayName", &"GoXLR Utility 1.2.4");
         let _ = key.set_value("DisplayIcon", &daemon.to_string_lossy().to_string());
         let _ = key.set_value("DisplayVersion", &"1.2.4");
         let _ = key.set_value("Publisher", &"The GoXLR on Linux Team");
-        let _ = key.set_value(
-            "URLInfoAbout",
-            &"https://github.com/goxlr-on-linux/goxlr-utility/",
-        );
+        let _ = key.set_value("URLInfoAbout", &"https://github.com/goxlr-on-linux/goxlr-utility/");
         let _ = key.set_value("InstallLocation", &app_dir.to_string_lossy().to_string());
     }
 }
 
 fn launch_and_exit(use_app: bool) {
-    let program_files =
-        std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".into());
+    let program_files = std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".into());
     let app_dir = PathBuf::from(&program_files).join("GoXLR Utility");
     let launcher_exe = app_dir.join("goxlr-launcher.exe");
     let daemon_exe = app_dir.join("goxlr-daemon.exe");
 
     // Launch daemon via explorer / de-elevate or direct
     if launcher_exe.exists() {
-        let _ = Command::new("explorer.exe").arg(&launcher_exe).spawn();
+        let _ = Command::new("explorer.exe")
+            .arg(&launcher_exe)
+            .spawn();
     } else if daemon_exe.exists() {
         let mut cmd = Command::new(&daemon_exe);
         if use_app {
