@@ -1704,6 +1704,7 @@ impl<'a> Device<'a> {
                 );
 
                 value_changed = true;
+                self.goxlr.set_volume(channel, new_volume)?;
                 self.profile.set_channel_volume(channel, new_volume)?;
 
                 // Update the Submix..

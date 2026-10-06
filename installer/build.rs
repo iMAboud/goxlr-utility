@@ -79,6 +79,7 @@ fn prepare_device_image(out_dir: &Path) {
         .join("resources")
         .join("goxlr-utility-large.png");
     let logo_dst = out_dir.join("goxlr_logo.bin");
+    #[allow(clippy::collapsible_if)]
     if logo_src.exists() {
         if let Ok(l_img) = image::open(&logo_src) {
             let l_scaled = l_img.resize(22, 22, image::imageops::FilterType::Lanczos3);
