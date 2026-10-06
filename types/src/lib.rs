@@ -907,6 +907,15 @@ pub enum VodMode {
     StreamNoMusic,
 }
 
+#[derive(Default, Debug, Copy, Clone, EnumIter, Display, PartialEq, Eq)]
+#[cfg_attr(feature = "clap", derive(ValueEnum))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum FaderStrategy {
+    #[default]
+    InstantJump,
+    Pickup,
+}
+
 #[derive(Default, Debug, Copy, Clone, Enum, PartialEq, Eq)]
 #[cfg_attr(feature = "clap", derive(ValueEnum))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
