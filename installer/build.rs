@@ -27,7 +27,7 @@ fn main() {
     println!("cargo:rerun-if-changed=resources/installer.rc");
     println!("cargo:rerun-if-changed=resources/installer.manifest");
     println!("cargo:rerun-if-changed=../AUDIO DRIVER");
-    println!("cargo:rerun-if-changed=../goxlr.png");
+    println!("cargo:rerun-if-changed=../logo.png");
     println!("cargo:rerun-if-changed=../daemon/resources/goxlr-utility-large.png");
     println!("cargo:rerun-if-changed=../daemon/resources/goxlr-utility.ico");
     println!("cargo:rerun-if-changed=../target/release/goxlr-daemon.exe");
@@ -52,7 +52,7 @@ fn main() {
 fn prepare_device_image(out_dir: &Path) {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let repo_root = manifest_dir.parent().unwrap();
-    let img_src = repo_root.join("goxlr.png");
+    let img_src = repo_root.join("logo.png");
     let bin_dst = out_dir.join("goxlr_device.bin");
 
     if img_src.exists() {
@@ -74,7 +74,7 @@ fn prepare_device_image(out_dir: &Path) {
             println!("cargo:warning=Prepared goxlr_device.bin: {}x{}", w, h);
         }
     } else {
-        println!("cargo:warning=goxlr.png not found at {:?}", img_src);
+        println!("cargo:warning=logo.png not found at {:?}", img_src);
     }
 
     let logo_src = repo_root.join("logo.png");
