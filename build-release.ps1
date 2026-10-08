@@ -73,8 +73,8 @@ def update_exe_icon(exe_path, ico_path):
     EndUpdateResourceW(hUpdate, False)
 
 import os
-ico = 'daemon/resources/goxlr-utility.ico'
-for p in ['build-output/goxlr-utility-ui.exe', 'target/release/goxlr-utility-ui.exe']:
+ico = 'logo.ico'
+for p in ['build-output/goxlr-utility-ui.exe', 'target/release/goxlr-utility-ui.exe', 'build-output/goxlr-daemon.exe', 'target/release/goxlr-daemon.exe', 'build-output/goxlr-launcher.exe', 'target/release/goxlr-launcher.exe']:
     if os.path.exists(p):
         update_exe_icon(p, ico)
         print(f'Icon updated in {p}')

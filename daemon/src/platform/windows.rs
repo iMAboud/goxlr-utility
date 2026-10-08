@@ -21,7 +21,7 @@ use winrt_toast_reborn::{Audio, Toast, ToastDuration, ToastManager};
 
 const GOXLR_APP_NAME: &str = "GoXLR App.exe";
 const GOXLR_BETA_APP_NAME: &str = "GoXLR Beta App.exe";
-const AUTOSTART_FILENAME: &str = "GoXLR Utility.lnk";
+const AUTOSTART_FILENAME: &str = "GoXLR.lnk";
 
 lazy_static! {
     static ref STARTUP_PATH: Option<PathBuf> = get_startup_dir();
@@ -52,7 +52,7 @@ pub fn display_error(message: String) {
     let message = HSTRING::from(message);
 
     unsafe {
-        MessageBoxW(None, &message, w!("GoXLR Utility"), MB_OK | MB_ICONERROR);
+        MessageBoxW(None, &message, w!("GoXLR"), MB_OK | MB_ICONERROR);
     }
 }
 
