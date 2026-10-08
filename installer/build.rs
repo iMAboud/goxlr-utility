@@ -29,6 +29,7 @@ fn main() {
     println!("cargo:rerun-if-changed=../AUDIO DRIVER");
     println!("cargo:rerun-if-changed=../goxlr.png");
     println!("cargo:rerun-if-changed=../daemon/resources/goxlr-utility-large.png");
+    println!("cargo:rerun-if-changed=../daemon/resources/goxlr-utility.ico");
     println!("cargo:rerun-if-changed=../target/release/goxlr-daemon.exe");
     println!("cargo:rerun-if-changed=../target/release/goxlr-launcher.exe");
     println!("cargo:rerun-if-changed=../target/release/goxlr-utility-ui.exe");
@@ -76,25 +77,21 @@ fn prepare_device_image(out_dir: &Path) {
         println!("cargo:warning=goxlr.png not found at {:?}", img_src);
     }
 
-    let logo_src = repo_root.join("daemon").join("resources").join("goxlr-utility-large.png");
+    let logo_src = repo_root.join("logo.png");
     let logo_dst = out_dir.join("goxlr_logo.bin");
     if logo_src.exists() {
         if let Ok(l_img) = image::open(&logo_src) {
-            let l_scaled = l_img.resize(22, 22, image::imageops::FilterType::Lanczos3);
+            let l_scaled = l_img.resize(24, 24, image::imageops::FilterType::Lanczos3);
             let l_rgba = l_scaled.to_rgba8();
             let (lw, lh) = (l_rgba.width(), l_rgba.height());
             let mut l_out = Vec::with_capacity(8 + (lw * lh * 4) as usize);
             l_out.extend_from_slice(&lw.to_le_bytes());
             l_out.extend_from_slice(&lh.to_le_bytes());
             for pixel in l_rgba.pixels() {
-                let a = pixel.0[3];
-                // Neon magenta/pink #ec4899
-                let r = 236u32;
-                let g = 72u32;
-                let b = 153u32;
-                let pb = ((b * a as u32 + 127) / 255) as u8;
-                let pg = ((g * a as u32 + 127) / 255) as u8;
-                let pr = ((r * a as u32 + 127) / 255) as u8;
+                let [r, g, b, a] = pixel.0;
+                let pb = ((b as u32 * a as u32 + 127) / 255) as u8;
+                let pg = ((g as u32 * a as u32 + 127) / 255) as u8;
+                let pr = ((r as u32 * a as u32 + 127) / 255) as u8;
                 l_out.extend_from_slice(&[pb, pg, pr, a]);
             }
             let _ = std::fs::write(&logo_dst, l_out);

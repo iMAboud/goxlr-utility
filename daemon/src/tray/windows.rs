@@ -24,7 +24,7 @@ use windows::Win32::UI::Shell::{
     NOTIFY_ICON_MESSAGE, NOTIFYICONDATAW, Shell_NotifyIconW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    AppendMenuW, CREATESTRUCTW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, CreateIcon, CreatePopupMenu,
+    AppendMenuW, CREATESTRUCTW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, CreatePopupMenu,
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GWLP_USERDATA, GetMessageW,
     GetWindowLongPtrW, HICON, HMENU, MENUINFO, MF_POPUP, MF_SEPARATOR, MF_STRING,
     MIM_APPLYTOSUBMENUS, MIM_STYLE, MNS_NOTIFYBYPOS, RegisterClassW, RegisterWindowMessageW,
@@ -124,8 +124,8 @@ fn run_loop(msg_window: HWND, state: DaemonState) {
 
 fn create_hwnd(proc: Rc<Box<dyn WindowProc>>) -> Result<HWND> {
     let h_instance: HINSTANCE = unsafe { GetModuleHandleW(None) }?.into();
-    let lp_sz_class_name = w!("GoXLR Utility");
-    let lp_sz_window_name = w!("GoXLR Utility");
+    let lp_sz_class_name = w!("GoXLR Utility Tray");
+    let lp_sz_window_name = w!("GoXLR Utility Tray");
 
     // Create our Window Class..
     let window_class = WNDCLASSW {
@@ -180,24 +180,70 @@ fn load_icon() -> Result<HICON> {
     debug!("Loading Tray Icon");
     let (rgba, width, height) = get_icon_from_global();
 
-    let count = rgba.len() / 4;
-    let mut alpha_mask = Vec::with_capacity(count);
-    for slice in rgba.chunks(4) {
-        alpha_mask.push(slice[3].wrapping_sub(u8::MAX));
-    }
+    use windows::Win32::Graphics::Gdi::{
+        CreateBitmap, CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject,
+        BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{CreateIconIndirect, ICONINFO};
 
-    let icon = unsafe {
-        CreateIcon(
+    unsafe {
+        let hdc = CreateCompatibleDC(None);
+        let mut bmi: BITMAPINFO = mem::zeroed();
+        bmi.bmiHeader.biSize = mem::size_of::<BITMAPINFOHEADER>() as u32;
+        bmi.bmiHeader.biWidth = width as i32;
+        bmi.bmiHeader.biHeight = -(height as i32); // top-down
+        bmi.bmiHeader.biPlanes = 1;
+        bmi.bmiHeader.biBitCount = 32;
+        bmi.bmiHeader.biCompression = BI_RGB.0;
+
+        let mut bits_ptr: *mut c_void = ptr::null_mut();
+        let hbm_color = CreateDIBSection(
+            Some(hdc),
+            &bmi,
+            DIB_RGB_COLORS,
+            &mut bits_ptr,
             None,
+            0,
+        )?;
+
+        // Convert RGBA to premultiplied BGRA for proper 32-bit alpha rendering in Windows tray
+        let dst = std::slice::from_raw_parts_mut(bits_ptr as *mut u8, rgba.len());
+        for (src, out) in rgba.chunks_exact(4).zip(dst.chunks_exact_mut(4)) {
+            let r = src[0] as u32;
+            let g = src[1] as u32;
+            let b = src[2] as u32;
+            let a = src[3] as u32;
+            out[0] = ((b * a + 127) / 255) as u8;
+            out[1] = ((g * a + 127) / 255) as u8;
+            out[2] = ((r * a + 127) / 255) as u8;
+            out[3] = a as u8;
+        }
+
+        let mask_bytes = vec![0u8; ((width + 15) / 16 * 2 * height) as usize];
+        let hbm_mask = CreateBitmap(
             width as i32,
             height as i32,
             1,
-            32_u8,
-            alpha_mask.as_ptr(),
-            rgba.as_ptr(),
-        )
-    }?;
-    Ok(icon)
+            1,
+            Some(mask_bytes.as_ptr() as *const c_void),
+        );
+
+        let icon_info = ICONINFO {
+            fIcon: windows::Win32::Foundation::TRUE,
+            xHotspot: 0,
+            yHotspot: 0,
+            hbmMask: hbm_mask,
+            hbmColor: hbm_color,
+        };
+
+        let icon = CreateIconIndirect(&icon_info)?;
+
+        let _ = DeleteObject(hbm_color.into());
+        let _ = DeleteObject(hbm_mask.into());
+        let _ = DeleteDC(hdc);
+
+        Ok(icon)
+    }
 }
 
 #[cfg(windows)]
@@ -536,11 +582,22 @@ fn get_notification_struct(hwnd: HWND) -> NOTIFYICONDATAW {
 }
 
 pub fn get_icon_from_global() -> (Vec<u8>, u32, u32) {
+    use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSMICON, SM_CYSMICON};
+    let sm_cx = unsafe { GetSystemMetrics(SM_CXSMICON) };
+    let sm_cy = unsafe { GetSystemMetrics(SM_CYSMICON) };
+    let target_w = if sm_cx > 0 { sm_cx as u32 } else { 32 };
+    let target_h = if sm_cy > 0 { sm_cy as u32 } else { 32 };
+
     let image = image::load_from_memory(crate::ICON)
-        .expect("Failed to load Icon")
-        .into_rgba8();
-    let (width, height) = image.dimensions();
-    let rgba = image.into_raw();
+        .expect("Failed to load Icon");
+    let resized = image::imageops::resize(
+        &image,
+        target_w,
+        target_h,
+        image::imageops::FilterType::Lanczos3,
+    );
+    let (width, height) = resized.dimensions();
+    let rgba = resized.into_raw();
     (rgba, width, height)
 }
 

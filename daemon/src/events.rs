@@ -159,15 +159,11 @@ pub async fn spawn_event_handler(
                         // Use the temp directory as the runtime for any launched apps..
                         let tmp_dir = std::env::temp_dir();
 
-                        #[cfg(not(unix))]
                         {
                             use windows_args;
                             match activate {
                                 Some(exec) => {
-                                    // Ok, we're going to force the app runtime into %TMP%, to
-                                    // prevent situations where it may need to write files.
-
-
+                                    // Force app runtime into %TMP% to prevent situations where it needs to write files.
                                     let exec = exec.replace("%URL%", &url);
                                     let mut args = windows_args::Args::parse_cmd(&exec);
                                     if let Some(command) = args.next() {
@@ -195,42 +191,8 @@ pub async fn spawn_event_handler(
 
                             // After launching the UI, set its titlebar color to blend with the app background
                             std::thread::spawn(|| {
-                                apply_titlebar_color();
+                                poll_and_apply_titlebar_color();
                             });
-                        }
-
-                        #[cfg(unix)]
-                        {
-                            use shell_words;
-                            match activate {
-                                Some(exec) => {
-                                    let exec = exec.replace("%URL%", &url);
-                                    if let Ok(params) = shell_words::split(&exec) {
-                                        debug!("Attempting to Execute: {:?}", params);
-                                        let result = Command::new(&params[0])
-                                            .current_dir(tmp_dir)
-                                            .args(&params[1..])
-                                            .stdout(Stdio::null())
-                                            .stderr(Stdio::null())
-                                            .spawn();
-
-                                        if let Err(error) = result {
-                                            warn!("Error Executing command: {:?}, falling back", error);
-                                            if let Err(error) = open::that(url) {
-                                                warn!("Error Opening URL: {:?}", error);
-                                            }
-                                        }
-
-                                    } else if let Err(error) = open::that(url) {
-                                        warn!("Error Opening URL: {:?}", error);
-                                    }
-                                },
-                                None => {
-                                    if let Err(error) = open::that(url) {
-                                        warn!("Error Opening URL: {:?}", error);
-                                    }
-                                }
-                            }
                         }
 
                     }
@@ -252,47 +214,71 @@ fn get_util_url(state: &DaemonState) -> String {
 }
 
 /// Sets the titlebar color of the GoXLR Utility UI window to #0E0C1A using
-/// the Windows DWM API (DWMWA_CAPTION_COLOR). Polls for the window to appear.
+/// the Windows DWM API (DWMWA_CAPTION_COLOR and DWMWA_USE_IMMERSIVE_DARK_MODE).
 #[cfg(windows)]
-fn apply_titlebar_color() {
-    use std::thread::sleep;
-    use std::time::Duration;
-    use windows::Win32::Foundation::HWND;
-    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CAPTION_COLOR};
-    use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
-    use windows::core::w;
+pub fn apply_titlebar_color() {
+    use windows::Win32::Foundation::{HWND, LPARAM};
+    use windows::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_USE_IMMERSIVE_DARK_MODE,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetWindowTextLengthW, GetWindowTextW, IsWindowVisible,
+    };
+    use windows::core::BOOL;
 
     // #0E0C1A as COLORREF (0x00BBGGRR)
     let color: u32 = 0x001A0C0E;
+    let dark_mode: BOOL = BOOL(1);
 
-    // Wait for the UI window to appear (up to 10 seconds)
-    for _ in 0..20 {
-        sleep(Duration::from_millis(500));
-
-        let hwnd = match unsafe { FindWindowW(None, w!("GoXLR Utility")) } {
-            Ok(h) if h != HWND::default() => h,
-            _ => continue,
-        };
-
-        let result = unsafe {
-            DwmSetWindowAttribute(
-                hwnd,
-                DWMWA_CAPTION_COLOR,
-                &color as *const u32 as *const std::ffi::c_void,
-                std::mem::size_of::<u32>() as u32,
-            )
-        };
-
-        match result {
-            Ok(()) => {
-                debug!("Titlebar color set to #0E0C1A");
-                return;
-            }
-            Err(e) => {
-                warn!("Failed to set titlebar color: {:?}", e);
-                return;
+    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let (color_ptr, dark_ptr) = unsafe { *(lparam.0 as *const (*const u32, *const BOOL)) };
+        if unsafe { IsWindowVisible(hwnd) }.as_bool() {
+            let len = unsafe { GetWindowTextLengthW(hwnd) };
+            if len > 0 {
+                let mut buf = vec![0u16; (len + 1) as usize];
+                unsafe { GetWindowTextW(hwnd, &mut buf) };
+                let title = String::from_utf16_lossy(&buf);
+                let title_trimmed = title.trim_matches(char::from(0)).trim();
+                if title_trimmed.starts_with("GoXLR Utility") && !title_trimmed.contains("Tray") {
+                    let _ = unsafe {
+                        DwmSetWindowAttribute(
+                            hwnd,
+                            DWMWA_USE_IMMERSIVE_DARK_MODE,
+                            dark_ptr as *const std::ffi::c_void,
+                            std::mem::size_of::<BOOL>() as u32,
+                        )
+                    };
+                    let _ = unsafe {
+                        DwmSetWindowAttribute(
+                            hwnd,
+                            DWMWA_CAPTION_COLOR,
+                            color_ptr as *const std::ffi::c_void,
+                            std::mem::size_of::<u32>() as u32,
+                        )
+                    };
+                }
             }
         }
+        BOOL(1)
     }
-    warn!("GoXLR Utility UI window not found for titlebar color");
+
+    let params = (&color as *const u32, &dark_mode as *const BOOL);
+    let _ = unsafe {
+        EnumWindows(
+            Some(enum_proc),
+            LPARAM(&params as *const _ as isize),
+        )
+    };
+}
+
+/// Polls for the UI window to appear and styles its titlebar.
+#[cfg(windows)]
+fn poll_and_apply_titlebar_color() {
+    use std::thread::sleep;
+    use std::time::Duration;
+
+    for _ in 0..40 {
+        sleep(Duration::from_millis(250));
+        apply_titlebar_color();
+    }
 }

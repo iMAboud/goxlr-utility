@@ -93,9 +93,16 @@ pub async fn spawn_platform_runtime(
     let mut ctrl_shutdown = ctrl_shutdown()?;
     let mut ctrl_logoff = ctrl_logoff()?;
 
+    let mut check_ui_tick = 0u32;
     loop {
         select! {
             _ = duration.tick() => {
+                check_ui_tick = check_ui_tick.wrapping_add(1);
+                // Periodically ensure GoXLR Utility UI has styled titlebar
+                if check_ui_tick % 2 == 0 {
+                    crate::events::apply_titlebar_color();
+                }
+
                 let count = get_official_app_count();
                 if count > 0 {
                     throw_notification();

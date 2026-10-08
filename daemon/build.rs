@@ -5,7 +5,6 @@ use std::fs::File;
 use std::io::Error;
 use std::path::Path;
 
-#[cfg(target_os = "windows")]
 use windres::Build;
 
 include!("src/cli.rs");
@@ -26,10 +25,8 @@ fn watch_dir(path: &Path) {
 fn main() -> Result<(), Error> {
     watch_dir(Path::new("web-content"));
     println!("cargo:rerun-if-changed=resources/goxlr-daemon.rc");
-    #[cfg(target_os = "windows")]
-    {
-        Build::new().compile("resources/goxlr-daemon.rc").unwrap();
-    }
+    println!("cargo:rerun-if-changed=resources/goxlr-utility.ico");
+    Build::new().compile("resources/goxlr-daemon.rc").unwrap();
 
     let outdir = match env::var_os("OUT_DIR") {
         None => return Ok(()),
