@@ -47,6 +47,7 @@ fn main() {
     prepare_device_image(&out_dir);
 }
 
+#[allow(clippy::collapsible_if)]
 fn prepare_device_image(out_dir: &Path) {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let repo_root = manifest_dir.parent().unwrap();
