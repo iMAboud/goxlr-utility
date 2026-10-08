@@ -17,7 +17,7 @@ pub enum ParseError {
 
 /**
  * This simply needs to exist for cross-platform compatibility, it's unlikely we'll use
- * these on Linux!
+ * these!
  */
 
 #[derive(Debug)]

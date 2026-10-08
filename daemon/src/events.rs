@@ -239,7 +239,7 @@ pub fn apply_titlebar_color() {
                 unsafe { GetWindowTextW(hwnd, &mut buf) };
                 let title = String::from_utf16_lossy(&buf);
                 let title_trimmed = title.trim_matches(char::from(0)).trim();
-                if title_trimmed.starts_with("GoXLR Utility") && !title_trimmed.contains("Tray") {
+                if title_trimmed.starts_with("GoXLR") && !title_trimmed.contains("Tray") {
                     let _ = unsafe {
                         DwmSetWindowAttribute(
                             hwnd,

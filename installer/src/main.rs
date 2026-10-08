@@ -94,7 +94,69 @@ fn to_wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
+fn get_folder_size_kb(path: &Path) -> u32 {
+    let mut total_bytes = 0u64;
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_file() {
+                if let Ok(meta) = p.metadata() {
+                    total_bytes += meta.len();
+                }
+            } else if p.is_dir() {
+                total_bytes += get_folder_size_kb(&p) as u64 * 1024;
+            }
+        }
+    }
+    (total_bytes / 1024) as u32
+}
+
+fn perform_uninstall() {
+    let _ = Command::new("taskkill")
+        .args(["/F", "/IM", "goxlr-daemon.exe"])
+        .creation_flags(0x08000000)
+        .output();
+    let _ = Command::new("taskkill")
+        .args(["/F", "/IM", "goxlr-utility-ui.exe"])
+        .creation_flags(0x08000000)
+        .output();
+    let _ = Command::new("taskkill")
+        .args(["/F", "/IM", "GoXLRAudioCplApp.exe"])
+        .creation_flags(0x08000000)
+        .output();
+    thread::sleep(Duration::from_millis(500));
+
+    let program_files =
+        std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".into());
+    let app_dir = PathBuf::from(&program_files).join("GoXLR Utility");
+
+    let program_data = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".into());
+    let start_menu_folder =
+        PathBuf::from(&program_data).join(r"Microsoft\Windows\Start Menu\Programs\GoXLR");
+    let _ = fs::remove_dir_all(&start_menu_folder);
+
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        let startup_lnk = PathBuf::from(&appdata)
+            .join(r"Microsoft\Windows\Start Menu\Programs\Startup\GoXLR.lnk");
+        let _ = fs::remove_file(startup_lnk);
+    }
+
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let _ = hklm.delete_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR");
+    let _ = hklm.delete_subkey(r"SOFTWARE\GoXLR");
+
+    if app_dir.exists() {
+        let _ = fs::remove_dir_all(&app_dir);
+    }
+}
+
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|arg| arg == "--uninstall") {
+        perform_uninstall();
+        return;
+    }
+
     unsafe {
         let instance = GetModuleHandleW(PCWSTR::null()).unwrap_or_default();
         let class_name = to_wide("GoXLRInstallerWindow");
@@ -1444,14 +1506,14 @@ fn register_audio_driver(driver_dir: &Path) {
 fn setup_shortcuts(app_dir: &Path, autostart: bool) {
     let program_data = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".into());
     let start_menu_folder =
-        PathBuf::from(&program_data).join(r"Microsoft\Windows\Start Menu\Programs\GoXLR Utility");
+        PathBuf::from(&program_data).join(r"Microsoft\Windows\Start Menu\Programs\GoXLR");
 
     let _ = fs::create_dir_all(&start_menu_folder);
     let launcher_exe = app_dir.join("goxlr-launcher.exe");
     let daemon_exe = app_dir.join("goxlr-daemon.exe");
 
     if launcher_exe.exists() {
-        let lnk_path = start_menu_folder.join("GoXLR Utility.lnk");
+        let lnk_path = start_menu_folder.join("GoXLR.lnk");
         if let Ok(link) = ShellLink::new(&launcher_exe) {
             let _ = link.create_lnk(lnk_path);
         }
@@ -1461,7 +1523,7 @@ fn setup_shortcuts(app_dir: &Path, autostart: bool) {
     if let Ok(appdata) = std::env::var("APPDATA") {
         let startup_dir =
             PathBuf::from(&appdata).join(r"Microsoft\Windows\Start Menu\Programs\Startup");
-        let startup_lnk = startup_dir.join("GoXLR Utility.lnk");
+        let startup_lnk = startup_dir.join("GoXLR.lnk");
 
         if autostart {
             if daemon_exe.exists() {
@@ -1479,26 +1541,41 @@ fn setup_registry(app_dir: &Path, autostart: bool, use_app: bool) {
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
 
     // App root key
-    if let Ok((key, _)) = hklm.create_subkey(r"SOFTWARE\GoXLR Utility") {
+    if let Ok((key, _)) = hklm.create_subkey(r"SOFTWARE\GoXLR") {
         let _ = key.set_value("InstallPath", &app_dir.to_string_lossy().to_string());
-        let _ = key.set_value("StartMenu", &"GoXLR Utility");
+        let _ = key.set_value("StartMenu", &"GoXLR");
         let _ = key.set_value("UseApp", &if use_app { "1" } else { "0" });
         let _ = key.set_value("AutoStart", &if autostart { "1" } else { "0" });
     }
 
+    // Clean up old legacy key if present
+    let _ =
+        hklm.delete_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR Utility");
+
     // Uninstall key
     if let Ok((key, _)) =
-        hklm.create_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR Utility")
+        hklm.create_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR")
     {
+        let launcher = app_dir.join("goxlr-launcher.exe");
         let daemon = app_dir.join("goxlr-daemon.exe");
-        let _ = key.set_value("DisplayName", &"GoXLR Utility 1.2.4");
-        let _ = key.set_value("DisplayIcon", &daemon.to_string_lossy().to_string());
+        let icon_path = if daemon.exists() {
+            daemon
+        } else {
+            launcher.clone()
+        };
+
+        let uninst_cmd = format!("\"{}\" --uninstall", launcher.to_string_lossy());
+        let size_kb = get_folder_size_kb(app_dir);
+
+        let _ = key.set_value("DisplayName", &"GoXLR");
+        let _ = key.set_value("DisplayIcon", &icon_path.to_string_lossy().to_string());
         let _ = key.set_value("DisplayVersion", &"1.2.4");
-        let _ = key.set_value("Publisher", &"The GoXLR on Linux Team");
-        let _ = key.set_value(
-            "URLInfoAbout",
-            &"https://github.com/goxlr-on-linux/goxlr-utility/",
-        );
+        let _ = key.set_value("Publisher", &"iMAboud");
+        let _ = key.set_value("UninstallString", &uninst_cmd);
+        let _ = key.set_value("QuietUninstallString", &uninst_cmd);
+        let _ = key.set_value("EstimatedSize", &size_kb);
+        let _ = key.set_value("NoModify", &1u32);
+        let _ = key.set_value("NoRepair", &1u32);
         let _ = key.set_value("InstallLocation", &app_dir.to_string_lossy().to_string());
     }
 }

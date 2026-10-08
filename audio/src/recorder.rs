@@ -62,7 +62,7 @@ impl BufferedRecorder {
         // From my testing, the time from 'Button Notification' to 'Ready for Samples' takes about
         // 4ms.
         //
-        // On Linux, the polling time for 'Notifications' is 20ms, so we can safely assume that
+        // The polling time for 'Notifications' is 20ms, so we can safely assume that
         // 25ms is the absolute max amount of time between someone pressing a button, and the
         // audio handler being ready.
         //

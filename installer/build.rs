@@ -29,7 +29,7 @@ fn main() {
     println!("cargo:rerun-if-changed=../AUDIO DRIVER");
     println!("cargo:rerun-if-changed=../logo.png");
     println!("cargo:rerun-if-changed=../daemon/resources/goxlr-utility-large.png");
-    println!("cargo:rerun-if-changed=../daemon/resources/goxlr-utility.ico");
+    println!("cargo:rerun-if-changed=../logo.ico");
     println!("cargo:rerun-if-changed=../target/release/goxlr-daemon.exe");
     println!("cargo:rerun-if-changed=../target/release/goxlr-launcher.exe");
     println!("cargo:rerun-if-changed=../target/release/goxlr-utility-ui.exe");

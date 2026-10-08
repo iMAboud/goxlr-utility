@@ -124,8 +124,8 @@ fn run_loop(msg_window: HWND, state: DaemonState) {
 
 fn create_hwnd(proc: Rc<Box<dyn WindowProc>>) -> Result<HWND> {
     let h_instance: HINSTANCE = unsafe { GetModuleHandleW(None) }?.into();
-    let lp_sz_class_name = w!("GoXLR Utility Tray");
-    let lp_sz_window_name = w!("GoXLR Utility Tray");
+    let lp_sz_class_name = w!("GoXLR Tray");
+    let lp_sz_window_name = w!("GoXLR Tray");
 
     // Create our Window Class..
     let window_class = WNDCLASSW {
@@ -263,7 +263,7 @@ impl GoXLRWindowProc {
             debug!("Generating Tray Item");
 
             let mut tray_item = get_notification_struct(hwnd);
-            tray_item.szTip = tooltip("GoXLR Utility");
+            tray_item.szTip = tooltip("GoXLR");
             tray_item.hIcon = icon;
             tray_item.uFlags = NIF_MESSAGE | NIF_TIP | NIF_ICON;
             tray_item.uCallbackMessage = EVENT_MESSAGE;
