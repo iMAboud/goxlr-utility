@@ -219,7 +219,7 @@ fn get_util_url(state: &DaemonState) -> String {
 pub fn apply_titlebar_color() {
     use windows::Win32::Foundation::{HWND, LPARAM};
     use windows::Win32::Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_USE_IMMERSIVE_DARK_MODE,
+        DWMWA_CAPTION_COLOR, DWMWA_USE_IMMERSIVE_DARK_MODE, DwmSetWindowAttribute,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetWindowTextLengthW, GetWindowTextW, IsWindowVisible,
@@ -263,12 +263,7 @@ pub fn apply_titlebar_color() {
     }
 
     let params = (&color as *const u32, &dark_mode as *const BOOL);
-    let _ = unsafe {
-        EnumWindows(
-            Some(enum_proc),
-            LPARAM(&params as *const _ as isize),
-        )
-    };
+    let _ = unsafe { EnumWindows(Some(enum_proc), LPARAM(&params as *const _ as isize)) };
 }
 
 /// Polls for the UI window to appear and styles its titlebar.
