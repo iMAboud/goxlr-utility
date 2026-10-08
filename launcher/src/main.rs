@@ -42,14 +42,27 @@ fn perform_uninstall() {
     use winreg::RegKey;
     use winreg::enums::HKEY_LOCAL_MACHINE;
 
+    trait CommandExt {
+        fn creation_flags(&mut self, flags: u32) -> &mut Self;
+    }
+    impl CommandExt for Command {
+        fn creation_flags(&mut self, flags: u32) -> &mut Self {
+            use std::os::windows::process::CommandExt as WinCommandExt;
+            WinCommandExt::creation_flags(self, flags)
+        }
+    }
+
     let _ = Command::new("taskkill")
         .args(["/F", "/IM", "goxlr-daemon.exe"])
+        .creation_flags(0x08000000)
         .output();
     let _ = Command::new("taskkill")
         .args(["/F", "/IM", "goxlr-utility-ui.exe"])
+        .creation_flags(0x08000000)
         .output();
     let _ = Command::new("taskkill")
         .args(["/F", "/IM", "GoXLRAudioCplApp.exe"])
+        .creation_flags(0x08000000)
         .output();
     thread::sleep(Duration::from_millis(500));
 
@@ -80,6 +93,7 @@ fn perform_uninstall() {
         );
         let _ = Command::new("cmd.exe")
             .args(["/C", &cmd_script])
+            .creation_flags(0x08000000)
             .spawn();
     }
 }

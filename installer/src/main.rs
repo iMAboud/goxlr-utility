@@ -144,10 +144,18 @@ fn perform_uninstall() {
 
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
     let _ = hklm.delete_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR");
+    let _ = hklm.delete_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR Utility");
     let _ = hklm.delete_subkey(r"SOFTWARE\GoXLR");
 
     if app_dir.exists() {
-        let _ = fs::remove_dir_all(&app_dir);
+        let cmd_script = format!(
+            "ping 127.0.0.1 -n 2 > nul & rmdir /s /q \"{}\"",
+            app_dir.to_string_lossy()
+        );
+        let _ = Command::new("cmd.exe")
+            .args(["/C", &cmd_script])
+            .creation_flags(0x08000000)
+            .spawn();
     }
 }
 

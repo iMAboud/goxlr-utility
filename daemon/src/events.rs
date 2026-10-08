@@ -214,24 +214,31 @@ fn get_util_url(state: &DaemonState) -> String {
 }
 
 /// Sets the titlebar color of the GoXLR Utility UI window to #0E0C1A using
-/// the Windows DWM API (DWMWA_CAPTION_COLOR and DWMWA_USE_IMMERSIVE_DARK_MODE).
+/// the Windows DWM API (DWMWA_CAPTION_COLOR and DWMWA_USE_IMMERSIVE_DARK_MODE)
+/// and applies logo.ico to the window and taskbar via WM_SETICON.
 #[cfg(windows)]
 pub fn apply_titlebar_color() {
-    use windows::Win32::Foundation::{HWND, LPARAM};
+    use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
     use windows::Win32::Graphics::Dwm::{
         DWMWA_CAPTION_COLOR, DWMWA_USE_IMMERSIVE_DARK_MODE, DwmSetWindowAttribute,
     };
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetWindowTextLengthW, GetWindowTextW, IsWindowVisible,
+        EnumWindows, GetWindowTextLengthW, GetWindowTextW, IsWindowVisible, LoadIconW, SendMessageW,
+        ICON_BIG, ICON_SMALL, WM_SETICON,
     };
-    use windows::core::BOOL;
+    use windows::core::{BOOL, PCWSTR};
 
     // #0E0C1A as COLORREF (0x00BBGGRR)
     let color: u32 = 0x001A0C0E;
     let dark_mode: BOOL = BOOL(1);
 
+    let instance = unsafe { GetModuleHandleW(PCWSTR::null()) }.unwrap_or_default();
+    let icon = unsafe { LoadIconW(Some(instance.into()), PCWSTR(1 as *const u16)) }.unwrap_or_default();
+
     unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
-        let (color_ptr, dark_ptr) = unsafe { *(lparam.0 as *const (*const u32, *const BOOL)) };
+        let (color_ptr, dark_ptr, icon_val) =
+            unsafe { *(lparam.0 as *const (*const u32, *const BOOL, usize)) };
         if unsafe { IsWindowVisible(hwnd) }.as_bool() {
             let len = unsafe { GetWindowTextLengthW(hwnd) };
             if len > 0 {
@@ -256,13 +263,32 @@ pub fn apply_titlebar_color() {
                             std::mem::size_of::<u32>() as u32,
                         )
                     };
+                    if icon_val != 0 {
+                        let _ = unsafe {
+                            SendMessageW(
+                                hwnd,
+                                WM_SETICON,
+                                Some(WPARAM(ICON_BIG as usize)),
+                                Some(LPARAM(icon_val as isize)),
+                            )
+                        };
+                        let _ = unsafe {
+                            SendMessageW(
+                                hwnd,
+                                WM_SETICON,
+                                Some(WPARAM(ICON_SMALL as usize)),
+                                Some(LPARAM(icon_val as isize)),
+                            )
+                        };
+                    }
                 }
             }
         }
         BOOL(1)
     }
 
-    let params = (&color as *const u32, &dark_mode as *const BOOL);
+    let icon_val = icon.0 as usize;
+    let params = (&color as *const u32, &dark_mode as *const BOOL, icon_val);
     let _ = unsafe { EnumWindows(Some(enum_proc), LPARAM(&params as *const _ as isize)) };
 }
 
