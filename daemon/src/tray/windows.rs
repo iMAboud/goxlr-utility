@@ -127,11 +127,14 @@ fn create_hwnd(proc: Rc<Box<dyn WindowProc>>) -> Result<HWND> {
     let lp_sz_class_name = w!("GoXLR Tray");
     let lp_sz_window_name = w!("GoXLR Tray");
 
+    let icon = load_icon().unwrap_or_default();
+
     // Create our Window Class..
     let window_class = WNDCLASSW {
         style: CS_HREDRAW | CS_VREDRAW,
         lpfnWndProc: Some(raw_window_proc),
         hInstance: h_instance,
+        hIcon: icon,
         lpszClassName: lp_sz_class_name,
         ..Default::default()
     };

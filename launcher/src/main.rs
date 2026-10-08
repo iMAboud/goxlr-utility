@@ -18,6 +18,12 @@ static DAEMON_NAME: &str = "goxlr-daemon";
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|arg| arg == "--uninstall") {
+        perform_uninstall();
+        return Ok(());
+    }
+
     // First thing to do, is check to see if the Daemon is running..
     if !is_daemon_running() {
         launch_daemon()?;
@@ -25,6 +31,71 @@ async fn main() -> Result<()> {
 
     open_ui().await?;
     Ok(())
+}
+
+fn perform_uninstall() {
+    use std::fs;
+    use std::path::PathBuf;
+    use std::process::Command;
+    use std::thread;
+    use std::time::Duration;
+    use winreg::RegKey;
+    use winreg::enums::HKEY_LOCAL_MACHINE;
+
+    trait CommandExt {
+        fn creation_flags(&mut self, flags: u32) -> &mut Self;
+    }
+    impl CommandExt for Command {
+        fn creation_flags(&mut self, flags: u32) -> &mut Self {
+            use std::os::windows::process::CommandExt as WinCommandExt;
+            WinCommandExt::creation_flags(self, flags)
+        }
+    }
+
+    let _ = Command::new("taskkill")
+        .args(["/F", "/IM", "goxlr-daemon.exe"])
+        .creation_flags(0x08000000)
+        .output();
+    let _ = Command::new("taskkill")
+        .args(["/F", "/IM", "goxlr-utility-ui.exe"])
+        .creation_flags(0x08000000)
+        .output();
+    let _ = Command::new("taskkill")
+        .args(["/F", "/IM", "GoXLRAudioCplApp.exe"])
+        .creation_flags(0x08000000)
+        .output();
+    thread::sleep(Duration::from_millis(500));
+
+    let program_files =
+        std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".into());
+    let app_dir = PathBuf::from(&program_files).join("GoXLR Utility");
+
+    let program_data = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".into());
+    let start_menu_folder =
+        PathBuf::from(&program_data).join(r"Microsoft\Windows\Start Menu\Programs\GoXLR");
+    let _ = fs::remove_dir_all(&start_menu_folder);
+
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        let startup_lnk = PathBuf::from(&appdata)
+            .join(r"Microsoft\Windows\Start Menu\Programs\Startup\GoXLR.lnk");
+        let _ = fs::remove_file(startup_lnk);
+    }
+
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let _ = hklm.delete_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR");
+    let _ = hklm.delete_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR Utility");
+    let _ = hklm.delete_subkey(r"SOFTWARE\GoXLR");
+
+    if app_dir.exists() {
+        let cmd_script = format!(
+            "ping 127.0.0.1 -n 2 > nul & rmdir /s /q \"{}\"",
+            app_dir.to_string_lossy()
+        );
+        let _ = Command::new("cmd.exe")
+            .args(["/C", &cmd_script])
+            .creation_flags(0x08000000)
+            .spawn();
+    }
 }
 
 async fn get_connection() -> Result<LocalSocketStream> {

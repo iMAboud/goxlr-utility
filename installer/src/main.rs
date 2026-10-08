@@ -27,11 +27,12 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
 use windows::Win32::UI::WindowsAndMessaging::{
     CS_HREDRAW, CS_VREDRAW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
-    GetMessageW, GetSystemMetrics, HTCAPTION, IDC_ARROW, LWA_ALPHA, LoadCursorW, MSG, PostMessageW,
-    PostQuitMessage, RegisterClassW, SM_CXSCREEN, SM_CYSCREEN, SW_MINIMIZE, SW_SHOW, SendMessageW,
-    SetLayeredWindowAttributes, ShowWindow, TranslateMessage, WM_CLOSE, WM_CREATE, WM_DESTROY,
-    WM_ERASEBKGND, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_NCLBUTTONDOWN, WM_PAINT, WM_USER,
-    WNDCLASSW, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_POPUP,
+    GetMessageW, GetSystemMetrics, HTCAPTION, IDC_ARROW, LWA_ALPHA, LoadCursorW, LoadIconW, MSG,
+    PostMessageW, PostQuitMessage, RegisterClassW, SM_CXSCREEN, SM_CYSCREEN, SW_MINIMIZE, SW_SHOW,
+    SendMessageW, SetLayeredWindowAttributes, ShowWindow, TranslateMessage, WM_CLOSE, WM_CREATE,
+    WM_DESTROY, WM_ERASEBKGND, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_NCLBUTTONDOWN,
+    WM_PAINT, WM_USER, WNDCLASSW, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_APPWINDOW, WS_EX_LAYERED,
+    WS_POPUP,
 };
 use windows::core::PCWSTR;
 
@@ -143,10 +144,18 @@ fn perform_uninstall() {
 
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
     let _ = hklm.delete_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR");
+    let _ = hklm.delete_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR Utility");
     let _ = hklm.delete_subkey(r"SOFTWARE\GoXLR");
 
     if app_dir.exists() {
-        let _ = fs::remove_dir_all(&app_dir);
+        let cmd_script = format!(
+            "ping 127.0.0.1 -n 2 > nul & rmdir /s /q \"{}\"",
+            app_dir.to_string_lossy()
+        );
+        let _ = Command::new("cmd.exe")
+            .args(["/C", &cmd_script])
+            .creation_flags(0x08000000)
+            .spawn();
     }
 }
 
@@ -161,13 +170,15 @@ fn main() {
         let instance = GetModuleHandleW(PCWSTR::null()).unwrap_or_default();
         let class_name = to_wide("GoXLRInstallerWindow");
 
+        let icon = LoadIconW(Some(instance.into()), PCWSTR(1 as *const u16)).unwrap_or_default();
+
         let wnd_class = WNDCLASSW {
             style: CS_HREDRAW | CS_VREDRAW,
             lpfnWndProc: Some(wnd_proc),
             cbClsExtra: 0,
             cbWndExtra: 0,
             hInstance: instance.into(),
-            hIcon: Default::default(),
+            hIcon: icon,
             hCursor: LoadCursorW(None, IDC_ARROW).unwrap_or_default(),
             hbrBackground: Default::default(),
             lpszMenuName: PCWSTR::null(),
