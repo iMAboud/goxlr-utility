@@ -162,7 +162,7 @@ fn main() {
         let instance = GetModuleHandleW(PCWSTR::null()).unwrap_or_default();
         let class_name = to_wide("GoXLRInstallerWindow");
 
-        let icon = LoadIconW(instance.into(), PCWSTR(1 as *const u16)).unwrap_or_default();
+        let icon = LoadIconW(Some(instance.into()), PCWSTR(1 as *const u16)).unwrap_or_default();
 
         let wnd_class = WNDCLASSW {
             style: CS_HREDRAW | CS_VREDRAW,

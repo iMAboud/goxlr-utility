@@ -25,7 +25,7 @@ fn watch_dir(path: &Path) {
 fn main() -> Result<(), Error> {
     watch_dir(Path::new("web-content"));
     println!("cargo:rerun-if-changed=resources/goxlr-daemon.rc");
-    println!("cargo:rerun-if-changed=../logo.ico");
+    println!("cargo:rerun-if-changed=resources/logo.ico");
     Build::new().compile("resources/goxlr-daemon.rc").unwrap();
 
     let outdir = match env::var_os("OUT_DIR") {
