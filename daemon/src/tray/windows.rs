@@ -181,8 +181,8 @@ fn load_icon() -> Result<HICON> {
     let (rgba, width, height) = get_icon_from_global();
 
     use windows::Win32::Graphics::Gdi::{
-        CreateBitmap, CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject,
-        BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
+        BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateBitmap, CreateCompatibleDC, CreateDIBSection,
+        DIB_RGB_COLORS, DeleteDC, DeleteObject,
     };
     use windows::Win32::UI::WindowsAndMessaging::{CreateIconIndirect, ICONINFO};
 
@@ -197,14 +197,7 @@ fn load_icon() -> Result<HICON> {
         bmi.bmiHeader.biCompression = BI_RGB.0;
 
         let mut bits_ptr: *mut c_void = ptr::null_mut();
-        let hbm_color = CreateDIBSection(
-            Some(hdc),
-            &bmi,
-            DIB_RGB_COLORS,
-            &mut bits_ptr,
-            None,
-            0,
-        )?;
+        let hbm_color = CreateDIBSection(Some(hdc), &bmi, DIB_RGB_COLORS, &mut bits_ptr, None, 0)?;
 
         // Convert RGBA to premultiplied BGRA for proper 32-bit alpha rendering in Windows tray
         let dst = std::slice::from_raw_parts_mut(bits_ptr as *mut u8, rgba.len());
@@ -588,8 +581,7 @@ pub fn get_icon_from_global() -> (Vec<u8>, u32, u32) {
     let target_w = if sm_cx > 0 { sm_cx as u32 } else { 32 };
     let target_h = if sm_cy > 0 { sm_cy as u32 } else { 32 };
 
-    let image = image::load_from_memory(crate::ICON)
-        .expect("Failed to load Icon");
+    let image = image::load_from_memory(crate::ICON).expect("Failed to load Icon");
     let resized = image::imageops::resize(
         &image,
         target_w,

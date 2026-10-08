@@ -199,7 +199,6 @@ async fn run_utility() -> Result<()> {
         warn!("Unable to calculate timezone, using UTC for log timestamps");
     }
 
-
     if let Some(device) = args.override_sample_input_device {
         OVERRIDE_SAMPLER_INPUT.lock().unwrap().replace(device);
     }
@@ -398,4 +397,3 @@ async fn run_utility() -> Result<()> {
     }
     Ok(())
 }
-
