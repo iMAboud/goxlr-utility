@@ -16,6 +16,7 @@ tokio = { workspace = true }
 interprocess = { workspace = true }
 which = { workspace = true }
 sysinfo = { workspace = true }
+winreg = { workspace = true }
 
 [build-dependencies]
 windres = { workspace = true }
