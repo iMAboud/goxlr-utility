@@ -68,7 +68,9 @@ pub fn get_endpoint_peak_levels() -> HashMap<String, f32> {
                 let name_lower = name_str.to_lowercase();
                 let channel_key = if name_lower.contains("music") {
                     "Music"
-                } else if name_lower.contains("chat mic") || (name_lower.contains("mic") && !name_lower.contains("monitor")) {
+                } else if name_lower.contains("chat mic")
+                    || (name_lower.contains("mic") && !name_lower.contains("monitor"))
+                {
                     "Mic"
                 } else if name_lower.contains("chat") {
                     "Chat"

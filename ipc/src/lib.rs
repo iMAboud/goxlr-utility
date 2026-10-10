@@ -1,3 +1,5 @@
+#![allow(clippy::double_must_use)]
+
 use enum_map::Enum;
 use json_patch::Patch;
 use serde::{Deserialize, Serialize};

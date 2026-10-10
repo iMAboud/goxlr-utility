@@ -144,7 +144,8 @@ fn perform_uninstall() {
 
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
     let _ = hklm.delete_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR");
-    let _ = hklm.delete_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR Utility");
+    let _ =
+        hklm.delete_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GoXLR Utility");
     let _ = hklm.delete_subkey(r"SOFTWARE\GoXLR");
 
     if app_dir.exists() {
