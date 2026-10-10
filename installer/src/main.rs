@@ -1,5 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(
+    unsafe_op_in_unsafe_fn,
+    clippy::too_many_arguments,
+    clippy::manual_range_contains,
+    clippy::useless_format,
+    clippy::manual_dangling_ptr,
+    clippy::manual_flatten,
+    clippy::collapsible_if,
+    clippy::redundant_pattern_matching
+)]
 
 use std::fs;
 use std::path::{Path, PathBuf};
