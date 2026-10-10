@@ -179,6 +179,7 @@ fn create_hwnd(proc: Rc<Box<dyn WindowProc>>) -> Result<HWND> {
     Ok(hwnd)
 }
 
+#[allow(clippy::chunks_exact_to_as_chunks, clippy::manual_div_ceil)]
 fn load_icon() -> Result<HICON> {
     debug!("Loading Tray Icon");
     let (rgba, width, height) = get_icon_from_global();

@@ -99,7 +99,7 @@ pub async fn spawn_platform_runtime(
             _ = duration.tick() => {
                 check_ui_tick = check_ui_tick.wrapping_add(1);
                 // Periodically ensure GoXLR Utility UI has styled titlebar
-                if check_ui_tick % 2 == 0 {
+                if check_ui_tick.is_multiple_of(2) {
                     crate::events::apply_titlebar_color();
                 }
 

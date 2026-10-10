@@ -130,45 +130,44 @@ async fn trigger_activate(state: &DaemonState) {
     let url = get_util_url(state);
 
     // If saving window size is disabled, enforce default window dimensions (1188 x 713)
-    if !state.settings_handle.get_save_window_size().await {
-        if let Some(base_dirs) = directories::BaseDirs::new() {
-            let window_state_path = base_dirs
-                .config_dir()
-                .join("com.frostycoolslug.goxlr-utility-ui")
-                .join(".window-state.json");
-            if window_state_path.exists() {
-                if let Ok(content) = std::fs::read_to_string(&window_state_path) {
-                    if let Ok(mut json) = serde_json::from_str::<serde_json::Value>(&content) {
-                        if let Some(main) = json.get_mut("main") {
-                            main["width"] = serde_json::json!(1188);
-                            main["height"] = serde_json::json!(713);
-                            main["maximized"] = serde_json::json!(false);
-                            let _ = std::fs::write(
-                                &window_state_path,
-                                serde_json::to_string_pretty(&json).unwrap_or_default(),
-                            );
-                        }
-                    }
-                }
-            } else {
-                if let Some(parent) = window_state_path.parent() {
-                    let _ = std::fs::create_dir_all(parent);
-                }
-                let default_state = serde_json::json!({
-                    "main": {
-                        "width": 1188,
-                        "height": 713,
-                        "maximized": false,
-                        "visible": true,
-                        "decorated": true,
-                        "fullscreen": false
-                    }
-                });
+    if !state.settings_handle.get_save_window_size().await
+        && let Some(base_dirs) = directories::BaseDirs::new()
+    {
+        let window_state_path = base_dirs
+            .config_dir()
+            .join("com.frostycoolslug.goxlr-utility-ui")
+            .join(".window-state.json");
+        if window_state_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&window_state_path)
+                && let Ok(mut json) = serde_json::from_str::<serde_json::Value>(&content)
+                && let Some(main) = json.get_mut("main")
+            {
+                main["width"] = serde_json::json!(1188);
+                main["height"] = serde_json::json!(713);
+                main["maximized"] = serde_json::json!(false);
                 let _ = std::fs::write(
                     &window_state_path,
-                    serde_json::to_string_pretty(&default_state).unwrap_or_default(),
+                    serde_json::to_string_pretty(&json).unwrap_or_default(),
                 );
             }
+        } else {
+            if let Some(parent) = window_state_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let default_state = serde_json::json!({
+                "main": {
+                    "width": 1188,
+                    "height": 713,
+                    "maximized": false,
+                    "visible": true,
+                    "decorated": true,
+                    "fullscreen": false
+                }
+            });
+            let _ = std::fs::write(
+                &window_state_path,
+                serde_json::to_string_pretty(&default_state).unwrap_or_default(),
+            );
         }
     }
 
@@ -233,6 +232,7 @@ fn get_util_url(state: &DaemonState) -> String {
 /// the Windows DWM API (DWMWA_CAPTION_COLOR and DWMWA_USE_IMMERSIVE_DARK_MODE)
 /// and applies logo.ico to the window and taskbar via WM_SETICON.
 #[cfg(windows)]
+#[allow(clippy::manual_dangling_ptr)]
 pub fn apply_titlebar_color() {
     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
     use windows::Win32::Graphics::Dwm::{

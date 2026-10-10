@@ -48,10 +48,10 @@ pub fn get_ui_app_path() -> Option<PathBuf> {
         }
     }
 
-    if path.is_none() {
-        if let Ok(which) = which(bin_name) {
-            path.replace(which);
-        }
+    if path.is_none()
+        && let Ok(which) = which(bin_name)
+    {
+        path.replace(which);
     }
 
     path
