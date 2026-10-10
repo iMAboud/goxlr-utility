@@ -141,7 +141,7 @@ pub async fn spawn_http_server(
 
             let levels = crate::servers::audio_meters::get_endpoint_peak_levels();
 
-            for (_serial, device) in status.mixers.iter() {
+            for device in status.mixers.values() {
                 // 1. Mic check (Cough button muted while talking)
                 let is_mic_muted = device.cough_button.state != goxlr_types::MuteState::Unmuted;
                 let mic_peak = levels.get("Mic").copied().unwrap_or(0.0);
@@ -672,14 +672,14 @@ async fn default(req: HttpRequest) -> HttpResponse {
         std::path::PathBuf::from("./web-content").join(path_part),
     ];
     for local_path in &candidates {
-        if local_path.is_file() {
-            if let Ok(bytes) = std::fs::read(local_path) {
-                let mime_type = MimeGuess::from_path(path).first_or_octet_stream();
-                let mut builder = HttpResponse::Ok();
-                builder.insert_header(ContentType(mime_type));
-                builder.insert_header(("Cache-Control", "no-cache, no-store, must-revalidate"));
-                return builder.body(bytes);
-            }
+        if local_path.is_file()
+            && let Ok(bytes) = std::fs::read(local_path)
+        {
+            let mime_type = MimeGuess::from_path(path).first_or_octet_stream();
+            let mut builder = HttpResponse::Ok();
+            builder.insert_header(ContentType(mime_type));
+            builder.insert_header(("Cache-Control", "no-cache, no-store, must-revalidate"));
+            return builder.body(bytes);
         }
     }
 

@@ -93,12 +93,11 @@ fn config_path() -> std::path::PathBuf {
 
 fn load_config_from_disk() -> ToastConfig {
     let path = config_path();
-    if path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&path) {
-            if let Ok(cfg) = serde_json::from_str::<ToastConfig>(&content) {
-                return cfg;
-            }
-        }
+    if path.exists()
+        && let Ok(content) = std::fs::read_to_string(&path)
+        && let Ok(cfg) = serde_json::from_str::<ToastConfig>(&content)
+    {
+        return cfg;
     }
     ToastConfig::default()
 }
@@ -167,14 +166,14 @@ mod win_overlay {
             ) {
                 return (r, g, b);
             }
-        } else if clean.len() == 3 {
-            if let (Ok(r), Ok(g), Ok(b)) = (
+        } else if clean.len() == 3
+            && let (Ok(r), Ok(g), Ok(b)) = (
                 u8::from_str_radix(&clean[0..1], 16),
                 u8::from_str_radix(&clean[1..2], 16),
                 u8::from_str_radix(&clean[2..3], 16),
-            ) {
-                return (r * 17, g * 17, b * 17);
-            }
+            )
+        {
+            return (r * 17, g * 17, b * 17);
         }
         (0, 229, 255)
     }
