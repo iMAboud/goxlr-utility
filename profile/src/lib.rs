@@ -82,3 +82,30 @@ pub enum Faders {
     ))]
     D,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+
+    #[test]
+    fn test_load_example_profiles() {
+        let f1 = File::open("../profiles examples/MBdrGoxlr.goxlr")
+            .expect("MBdrGoxlr.goxlr should exist");
+        let p1 = profile::Profile::load(f1);
+        assert!(p1.is_ok(), "Failed to load MBdrGoxlr.goxlr: {:?}", p1.err());
+
+        let f2 = File::open("../profiles examples/Sleep.goxlr").expect("Sleep.goxlr should exist");
+        let p2 = profile::Profile::load(f2);
+        assert!(p2.is_ok(), "Failed to load Sleep.goxlr: {:?}", p2.err());
+
+        let f3 = File::open("../profiles examples/MBdrMics.goxlrMicProfile")
+            .expect("MBdrMics.goxlrMicProfile should exist");
+        let p3 = mic_profile::MicProfileSettings::load(f3);
+        assert!(
+            p3.is_ok(),
+            "Failed to load MBdrMics.goxlrMicProfile: {:?}",
+            p3.err()
+        );
+    }
+}

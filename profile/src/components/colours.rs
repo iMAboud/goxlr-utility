@@ -87,24 +87,40 @@ impl ColourMap {
 
         attr_key = format!("{}selected", self.prefix);
         if attribute.name == attr_key {
+            if attribute.value.is_empty() {
+                self.selected = None;
+                return Ok(true);
+            }
             self.selected = Some(u8::from_str(attribute.value.as_str())?);
             return Ok(true);
         }
 
         attr_key = format!("{}velocity", self.prefix);
         if attribute.name == attr_key {
+            if attribute.value.is_empty() {
+                self.velocity = None;
+                return Ok(true);
+            }
             self.velocity = Some(i8::from_str(attribute.value.as_str())?);
             return Ok(true);
         }
 
         attr_key = format!("{}state", self.prefix);
         if attribute.name == attr_key {
+            if attribute.value.is_empty() {
+                self.state = None;
+                return Ok(true);
+            }
             self.state = Some(ColourState::from_str(&attribute.value)?);
             return Ok(true);
         }
 
         attr_key = format!("{}blink", self.prefix);
         if attribute.name == attr_key {
+            if attribute.value.is_empty() {
+                self.blink = None;
+                return Ok(true);
+            }
             self.blink = Some(ColourState::from_str(&attribute.value)?);
             return Ok(true);
         }
@@ -139,6 +155,10 @@ impl ColourMap {
 
         attr_key = format!("{}Display", self.prefix);
         if attribute.name == attr_key {
+            if attribute.value.is_empty() {
+                self.colour_display = None;
+                return Ok(true);
+            }
             self.colour_display = Some(ColourDisplay::from_str(&attribute.value)?);
             return Ok(true);
         }

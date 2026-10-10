@@ -184,10 +184,10 @@ fn locate_daemon_binary() -> Option<PathBuf> {
         }
     }
 
-    if binary_path.is_none() {
-        if let Ok(path) = which(bin_name) {
-            binary_path.replace(path);
-        }
+    if binary_path.is_none()
+        && let Ok(path) = which(bin_name)
+    {
+        binary_path.replace(path);
     }
 
     binary_path
