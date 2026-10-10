@@ -59,7 +59,7 @@ impl SubMixer {
                     }
                 }
 
-                if !found {
+                if !found && channel != "lineOut" && channel != "headphone" {
                     println!("Unable to find Channel: {channel}");
                 }
                 continue;

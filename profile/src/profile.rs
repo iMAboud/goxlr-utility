@@ -76,7 +76,7 @@ impl Profile {
             }),
             Err(e) => {
                 warn!("Unable to Load Profile: {}", e);
-                bail!("Unable to Load Profile");
+                bail!("Unable to Load Profile: {}", e);
             }
         }
     }
