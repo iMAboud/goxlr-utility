@@ -69,6 +69,8 @@ pub async fn spawn_http_server(
         scribble_state: EnumMap::default(),
     }));
 
+    let monitor_app_data = app_data.clone();
+
     let server = HttpServer::new(move || {
         let cors = Cors::default()
             .allowed_origin_fn(|origin, _req_head| {
@@ -84,6 +86,10 @@ pub async fn spawn_http_server(
             .service(websocket)
             .service(execute_command)
             .service(get_devices)
+            .service(get_channel_levels)
+            .service(get_toast_settings)
+            .service(set_toast_settings)
+            .service(trigger_toast_endpoint)
             .service(get_sample)
             .service(get_scribble)
             .service(get_path)
@@ -113,6 +119,78 @@ pub async fn spawn_http_server(
 
     // Let upstream know we're running...
     let _ = handle_tx.send(Ok(Some(server.handle())));
+
+    crate::servers::toast_overlay::init_toast_system();
+    tokio::spawn(async move {
+        let mut last_toast = std::time::Instant::now() - std::time::Duration::from_secs(10);
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+            let cfg = crate::servers::toast_overlay::get_config();
+            if !cfg.enabled {
+                continue;
+            }
+
+            let cooldown = cfg.show_duration_ms;
+            if last_toast.elapsed().as_millis() < cooldown as u128 {
+                continue;
+            }
+
+            let Ok(status) = get_status(monitor_app_data.clone()).await else {
+                continue;
+            };
+
+            let levels = crate::servers::audio_meters::get_endpoint_peak_levels();
+
+            for (_serial, device) in status.mixers.iter() {
+                // 1. Mic check (Cough button muted while talking)
+                let is_mic_muted = device.cough_button.state != goxlr_types::MuteState::Unmuted;
+                let mic_peak = levels.get("Mic").copied().unwrap_or(0.0);
+                if is_mic_muted && mic_peak > 0.04 && cfg.mic_toast {
+                    let col = cfg.mic_color.clone().unwrap_or_else(|| cfg.color.clone());
+                    crate::servers::toast_overlay::trigger_toast(crate::servers::toast_overlay::ToastTriggerPayload {
+                        message: "TALKING WHILE MUTED".to_string(),
+                        color: Some(col),
+                        position: Some(cfg.position.clone()),
+                        duration_ms: Some(cfg.show_duration_ms),
+                    });
+                    last_toast = std::time::Instant::now();
+                    break;
+                }
+
+                // 2. Channels check (Voice Chat, Music, System)
+                let channels = [
+                    (goxlr_types::ChannelName::Chat, "Voice Chat", "Chat", cfg.chat_toast),
+                    (goxlr_types::ChannelName::Music, "Music", "Music", cfg.music_toast),
+                    (goxlr_types::ChannelName::System, "System", "System", cfg.system_toast),
+                ];
+
+                for (ch_enum, _ch_title, ch_key, ch_toast_active) in channels {
+                    let peak = levels.get(ch_key).copied().unwrap_or(0.0);
+                    if peak > 0.04 && ch_toast_active {
+                        let vol = device.levels.volumes[ch_enum];
+                        let is_muted = device.fader_status.values().any(|f| f.channel == ch_enum && f.mute_state != goxlr_types::MuteState::Unmuted);
+                        if vol == 0 || is_muted {
+                            let col = match ch_key {
+                                "Chat" => cfg.chat_color.as_ref(),
+                                "Music" => cfg.music_color.as_ref(),
+                                "System" => cfg.system_color.as_ref(),
+                                _ => None,
+                            }.unwrap_or(&cfg.color).clone();
+
+                            crate::servers::toast_overlay::trigger_toast(crate::servers::toast_overlay::ToastTriggerPayload {
+                                message: format!("MUTED {}", ch_key.to_uppercase()),
+                                color: Some(col),
+                                position: Some(cfg.position.clone()),
+                                duration_ms: Some(cfg.show_duration_ms),
+                            });
+                            last_toast = std::time::Instant::now();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    });
 
     // Wait for the server to exit with its reason
     let result = server.await;
@@ -330,6 +408,33 @@ async fn get_devices(app_data: Data<RwLock<AppData>>) -> HttpResponse {
     HttpResponse::InternalServerError().finish()
 }
 
+#[get("/api/channel-levels")]
+async fn get_channel_levels() -> HttpResponse {
+    let levels = crate::servers::audio_meters::get_endpoint_peak_levels();
+    HttpResponse::Ok()
+        .insert_header(("Cache-Control", "no-store, no-cache, must-revalidate"))
+        .json(&levels)
+}
+
+#[get("/api/toast/settings")]
+async fn get_toast_settings() -> HttpResponse {
+    HttpResponse::Ok()
+        .insert_header(("Cache-Control", "no-store, no-cache, must-revalidate"))
+        .json(crate::servers::toast_overlay::get_config())
+}
+
+#[post("/api/toast/settings")]
+async fn set_toast_settings(config: web::Json<crate::servers::toast_overlay::ToastConfig>) -> HttpResponse {
+    crate::servers::toast_overlay::set_config(config.into_inner());
+    HttpResponse::Ok().json(crate::servers::toast_overlay::get_config())
+}
+
+#[post("/api/toast/trigger")]
+async fn trigger_toast_endpoint(payload: web::Json<crate::servers::toast_overlay::ToastTriggerPayload>) -> HttpResponse {
+    crate::servers::toast_overlay::trigger_toast(payload.into_inner());
+    HttpResponse::Ok().finish()
+}
+
 #[get("/api/path")]
 async fn get_path(app_data: Data<RwLock<AppData>>, req: HttpRequest) -> HttpResponse {
     let params = web::Query::<HashMap<String, String>>::from_query(req.query_string());
@@ -532,11 +637,30 @@ async fn default(req: HttpRequest) -> HttpResponse {
         req.path()
     };
     let path_part = &path[1..path.len()];
+
+    let candidates = [
+        std::path::PathBuf::from("./daemon/web-content").join(path_part),
+        std::path::PathBuf::from("d:/iMA/Documents/GitHub/goxlr-utility/daemon/web-content").join(path_part),
+        std::path::PathBuf::from("./web-content").join(path_part),
+    ];
+    for local_path in &candidates {
+        if local_path.is_file() {
+            if let Ok(bytes) = std::fs::read(local_path) {
+                let mime_type = MimeGuess::from_path(path).first_or_octet_stream();
+                let mut builder = HttpResponse::Ok();
+                builder.insert_header(ContentType(mime_type));
+                builder.insert_header(("Cache-Control", "no-cache, no-store, must-revalidate"));
+                return builder.body(bytes);
+            }
+        }
+    }
+
     let file = WEB_CONTENT.get_file(path_part);
     if let Some(file) = file {
         let mime_type = MimeGuess::from_path(path).first_or_octet_stream();
         let mut builder = HttpResponse::Ok();
         builder.insert_header(ContentType(mime_type));
+        builder.insert_header(("Cache-Control", "no-cache, no-store, must-revalidate"));
         builder.body(file.contents())
     } else {
         HttpResponse::NotFound().finish()

@@ -136,6 +136,9 @@
 
     // 12. Center Lighting > Cough widget content
     setupCoughCenteringObserver();
+
+    // 13. Setup Lighting > Alerts Sub-tab & Hardware Activity Engine
+    setupLightingAlertsSystem();
   }
 
   function setupCoughCenteringObserver() {
@@ -158,6 +161,966 @@
     centerCoughWidget();
   }
 
+  // ==========================================================================
+  // Lighting > Alerts & Audio Activity System
+  // ==========================================================================
+
+  const DEFAULT_CHANNEL_CONFIGS = {
+    Music: {
+      enabled: true,
+      toastEnabled: true,
+      condition: 'either', // 'either', 'zero_only', 'muted_only'
+      flashColor: '#FF1744',
+      secondaryColor: '#000000',
+      speed: 250,
+      threshold: 2,
+    },
+    Chat: {
+      enabled: true,
+      toastEnabled: true,
+      condition: 'either',
+      flashColor: '#FF9100',
+      secondaryColor: '#000000',
+      speed: 250,
+      threshold: 2,
+    },
+    Game: {
+      enabled: false,
+      toastEnabled: false,
+      condition: 'either',
+      flashColor: '#00E5FF',
+      secondaryColor: '#000000',
+      speed: 250,
+      threshold: 2,
+    },
+    System: {
+      enabled: true,
+      toastEnabled: true,
+      condition: 'either',
+      flashColor: '#10B981',
+      secondaryColor: '#000000',
+      speed: 250,
+      threshold: 2,
+    },
+    LineIn: {
+      enabled: false,
+      toastEnabled: false,
+      condition: 'either',
+      flashColor: '#10B981',
+      secondaryColor: '#000000',
+      speed: 250,
+      threshold: 2,
+    },
+    Console: {
+      enabled: false,
+      toastEnabled: false,
+      condition: 'either',
+      flashColor: '#EC4899',
+      secondaryColor: '#000000',
+      speed: 250,
+      threshold: 2,
+    },
+    Sample: {
+      enabled: false,
+      toastEnabled: false,
+      condition: 'either',
+      flashColor: '#EAB308',
+      secondaryColor: '#000000',
+      speed: 250,
+      threshold: 2,
+    }
+  };
+
+  const DEFAULT_ALERT_SETTINGS = {
+    masterEnabled: true,
+    talkMuted: {
+      enabled: true,
+      toastEnabled: true,
+      target: 'both', // 'cough', 'fader', 'both'
+      flashColor: '#A855F7',
+      secondaryColor: '#12101F',
+      speed: 250, // ms
+      threshold: -36, // dB
+      mode: 'alternate',
+      showUiToast: true,
+    },
+    toast: {
+      enabled: true,
+      disable_fullscreen: false,
+      position: 'top-right',
+      show_duration_ms: 1000,
+    },
+    channels: DEFAULT_CHANNEL_CONFIGS,
+  };
+
+  let alertSettings = loadAlertSettings();
+  let isAlertsSubtabActive = false;
+  let activeChannelTab = 'Music';
+  let isMutatingAlerts = false;
+  let originalButtonColors = {};
+  let isTalkingAlertActive = false;
+  let talkHoldTimeout = null;
+  let talkPhase = false;
+  let lastTalkFlashTime = 0;
+  let simulateTalk = false;
+  let simulateChannel = null;
+  let channelStates = {};
+  let cachedChannelLevels = {};
+  let lastChannelFetchTime = 0;
+  let alertEngineStarted = false;
+  let lastToastTriggerTime = 0;
+
+  function getChannelState(chan) {
+    if (!channelStates[chan]) {
+      channelStates[chan] = {
+        lastFlashTime: 0,
+        flashPhase: false,
+        lastAudioTime: 0,
+        isActive: false,
+      };
+    }
+    return channelStates[chan];
+  }
+
+  function loadAlertSettings() {
+    try {
+      const stored = localStorage.getItem('goxlr_alert_settings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const mergedChannels = {};
+        for (const [ch, def] of Object.entries(DEFAULT_CHANNEL_CONFIGS)) {
+          mergedChannels[ch] = { ...def, ...(parsed.channels?.[ch] || {}) };
+        }
+        return {
+          ...DEFAULT_ALERT_SETTINGS,
+          ...parsed,
+          talkMuted: { ...DEFAULT_ALERT_SETTINGS.talkMuted, ...(parsed.talkMuted || {}) },
+          toast: { ...DEFAULT_ALERT_SETTINGS.toast, ...(parsed.toast || {}) },
+          channels: mergedChannels,
+        };
+      }
+    } catch (e) {}
+    return JSON.parse(JSON.stringify(DEFAULT_ALERT_SETTINGS));
+  }
+
+  function saveAlertSettings() {
+    try {
+      localStorage.setItem('goxlr_alert_settings', JSON.stringify(alertSettings));
+      if (alertSettings.toast) {
+        const toastPayload = {
+          enabled: alertSettings.toast.enabled !== false,
+          disable_fullscreen: !!alertSettings.toast.disable_fullscreen,
+          position: alertSettings.toast.position || 'bottom-center',
+          show_duration_ms: alertSettings.toast.show_duration_ms || 3000,
+          color: alertSettings.talkMuted?.flashColor || '#FF1744',
+          mic_color: alertSettings.talkMuted?.flashColor || '#FF1744',
+          chat_color: alertSettings.channels?.Chat?.flashColor || '#FF9100',
+          music_color: alertSettings.channels?.Music?.flashColor || '#FF1744',
+          system_color: alertSettings.channels?.System?.flashColor || '#00E5FF',
+          mic_toast: alertSettings.talkMuted?.toastEnabled !== false,
+          chat_toast: alertSettings.channels?.Chat?.toastEnabled !== false,
+          music_toast: alertSettings.channels?.Music?.toastEnabled !== false,
+          system_toast: alertSettings.channels?.System?.toastEnabled !== false,
+        };
+        fetch('/api/toast/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(toastPayload),
+        }).catch(() => {});
+      }
+    } catch (e) {}
+  }
+
+  function showToastNotification(text, color, force = false) {
+    const toastCfg = alertSettings.toast || DEFAULT_ALERT_SETTINGS.toast;
+    if (!toastCfg.enabled) return;
+
+    const now = Date.now();
+    const duration = toastCfg.show_duration_ms || 3000;
+    if (!force && now - lastToastTriggerTime < duration) return;
+    lastToastTriggerTime = now;
+
+    fetch('/api/toast/trigger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        color: color || '#00E5FF',
+        position: toastCfg.position,
+        duration_ms: duration,
+      }),
+    }).catch(() => {});
+  }
+
+  function cleanHex(color) {
+    if (!color) return '000000';
+    return color.replace('#', '').trim().toUpperCase();
+  }
+
+  function getFaderButtonForChannel(channelName) {
+    if (!window.c || !window.c.hasActiveDevice || !window.c.hasActiveDevice()) return null;
+    const dev = window.c.getActiveDevice();
+    const faders = dev?.fader_status || {};
+    for (const [faderName, status] of Object.entries(faders)) {
+      if (status.channel === channelName) {
+        if (faderName === 'A') return 'Fader1Mute';
+        if (faderName === 'B') return 'Fader2Mute';
+        if (faderName === 'C') return 'Fader3Mute';
+        if (faderName === 'D') return 'Fader4Mute';
+      }
+    }
+    return null;
+  }
+
+  function getMicFaderButton() {
+    return getFaderButtonForChannel('Mic') || 'Fader1Mute';
+  }
+
+  function getChannelVolume(dev, chan) {
+    if (!dev || !dev.levels) return 255;
+    if (dev.levels.volumes && typeof dev.levels.volumes[chan] === 'number') {
+      return dev.levels.volumes[chan];
+    }
+    if (dev.levels.submix?.inputs?.[chan]?.volume !== undefined) {
+      return dev.levels.submix.inputs[chan].volume;
+    }
+    return 255;
+  }
+
+  function saveOriginalButtonColor(buttonName, flashCol) {
+    if (originalButtonColors[buttonName]) return;
+    const dev = window.c?.getActiveDevice?.();
+    const btnCfg = dev?.lighting?.buttons?.[buttonName];
+    if (btnCfg && btnCfg.colours) {
+      const c1 = btnCfg.colours.colour_one || '000000';
+      const c2 = btnCfg.colours.colour_two || '000000';
+      if (flashCol && cleanHex(c1) === cleanHex(flashCol) && cleanHex(c2) === cleanHex(flashCol)) {
+        return;
+      }
+      originalButtonColors[buttonName] = {
+        colour_one: c1,
+        colour_two: c2,
+      };
+    }
+  }
+
+  function restoreOriginalButtonColor(buttonName) {
+    const orig = originalButtonColors[buttonName];
+    if (!orig || !window.$ || !window.c || !window.c.hasActiveDevice || !window.c.hasActiveDevice()) return;
+    const serial = window.c.getActiveSerial();
+    window.$.send_command(serial, {
+      SetButtonColours: [buttonName, orig.colour_one, orig.colour_two]
+    });
+    delete originalButtonColors[buttonName];
+  }
+
+  function restoreAllOriginalButtonColors() {
+    for (const btn of Object.keys(originalButtonColors)) {
+      restoreOriginalButtonColor(btn);
+    }
+    for (const state of Object.values(channelStates)) {
+      state.isActive = false;
+      state.flashPhase = false;
+    }
+  }
+
+  function initAlertEngine() {
+    if (alertEngineStarted) return;
+    alertEngineStarted = true;
+    saveAlertSettings();
+
+    setInterval(async () => {
+      const now = Date.now();
+      if (!window.c || !window.c.hasActiveDevice || !window.c.hasActiveDevice() || !window.$) return;
+      const serial = window.c.getActiveSerial();
+      const dev = window.c.getActiveDevice();
+
+      // Fetch channel peak levels periodically (every 140ms)
+      if (now - lastChannelFetchTime > 140) {
+        lastChannelFetchTime = now;
+        try {
+          const resp = await fetch('/api/channel-levels?_=' + now, { cache: 'no-store' });
+          if (resp.ok) {
+            cachedChannelLevels = await resp.json();
+          }
+        } catch (e) {}
+      }
+
+      // 1. Process Talk While Muted
+      let micLevelDb = -72.2;
+      try {
+        if (window.$.get_mic_level) {
+          const res = await window.$.get_mic_level(serial);
+          if (typeof res === 'number') {
+            micLevelDb = res;
+          } else if (res && typeof res.MicLevel === 'number') {
+            micLevelDb = res.MicLevel;
+          }
+        }
+      } catch (e) {}
+
+      // Fallback to WASAPI channel levels if GoXLR mic level is resting or unavailable
+      if (micLevelDb <= -70 && cachedChannelLevels) {
+        const wasapiMic = cachedChannelLevels['Mic'] ?? cachedChannelLevels['Chat Mic'] ?? cachedChannelLevels['mic'] ?? 0;
+        if (wasapiMic > 0.001) {
+          const approxDb = 20 * Math.log10(wasapiMic);
+          if (approxDb > micLevelDb) {
+            micLevelDb = approxDb;
+          }
+        }
+      }
+
+      // Update Live UI Meter if rendered
+      const liveFill = document.getElementById('alerts-live-meter-fill');
+      const liveVal = document.getElementById('alerts-live-meter-val');
+      if (liveFill && liveVal) {
+        const pct = Math.min(100, Math.max(0, ((micLevelDb + 60) / 50) * 100));
+        liveFill.style.width = pct + '%';
+        liveVal.textContent = Math.round(micLevelDb) + ' dB';
+      }
+
+      // Check mic muted state
+      const isCoughMuted = dev?.cough_button?.state && dev.cough_button.state !== 'Unmuted';
+      const micFaderBtn = getMicFaderButton();
+      const micFaderStatus = dev?.fader_status?.[micFaderBtn === 'Fader1Mute' ? 'A' : micFaderBtn === 'Fader2Mute' ? 'B' : micFaderBtn === 'Fader3Mute' ? 'C' : 'D'];
+      const isMicFaderMuted = micFaderStatus && micFaderStatus.mute_state !== 'Unmuted';
+      const isMicMuted = isCoughMuted || isMicFaderMuted;
+
+      const shouldFlashTalk = simulateTalk || (alertSettings.masterEnabled && alertSettings.talkMuted.enabled && isMicMuted && micLevelDb >= alertSettings.talkMuted.threshold);
+
+      if (shouldFlashTalk) {
+        const targets = [];
+        if (alertSettings.talkMuted.target === 'cough' || alertSettings.talkMuted.target === 'both') {
+          targets.push('Cough');
+        }
+        if (alertSettings.talkMuted.target === 'fader' || alertSettings.talkMuted.target === 'both') {
+          targets.push(micFaderBtn);
+        }
+
+        const flashCol = cleanHex(alertSettings.talkMuted.flashColor);
+        targets.forEach(btn => saveOriginalButtonColor(btn, flashCol));
+
+        if (now - lastTalkFlashTime >= alertSettings.talkMuted.speed) {
+          talkPhase = !talkPhase;
+          lastTalkFlashTime = now;
+          const secCol = alertSettings.talkMuted.mode === 'off' ? '000000' : cleanHex(alertSettings.talkMuted.secondaryColor);
+          const c1 = talkPhase ? flashCol : secCol;
+          const c2 = talkPhase ? flashCol : '000000';
+
+          targets.forEach(btn => {
+            window.$.send_command(serial, { SetButtonColours: [btn, c1, c2] });
+          });
+        }
+
+        if (alertSettings.toast?.enabled && alertSettings.talkMuted?.toastEnabled !== false) {
+          showToastNotification('TALKING WHILE MUTED', alertSettings.talkMuted.flashColor);
+        }
+
+        if (talkHoldTimeout) {
+          clearTimeout(talkHoldTimeout);
+          talkHoldTimeout = null;
+        }
+        isTalkingAlertActive = true;
+      } else if (isTalkingAlertActive) {
+        if (!talkHoldTimeout) {
+          talkHoldTimeout = setTimeout(() => {
+            const targets = ['Cough', micFaderBtn];
+            targets.forEach(restoreOriginalButtonColor);
+            isTalkingAlertActive = false;
+            talkHoldTimeout = null;
+          }, 350);
+        }
+      }
+
+      // 2. Process Channel Activity Alert (0% volume / muted) for the audio sliders
+      const availableChans = ['Chat', 'Music', 'System'];
+      for (const chan of availableChans) {
+        const cfg = alertSettings.channels?.[chan];
+        const state = getChannelState(chan);
+        const btnName = getFaderButtonForChannel(chan);
+
+        if (!btnName || !cfg || !alertSettings.masterEnabled || (!cfg.enabled && cfg.toastEnabled === false)) {
+          if (state.isActive && btnName) {
+            restoreOriginalButtonColor(btnName);
+            state.isActive = false;
+            state.flashPhase = false;
+          }
+          continue;
+        }
+
+        const faderKey = btnName === 'Fader1Mute' ? 'A' : btnName === 'Fader2Mute' ? 'B' : btnName === 'Fader3Mute' ? 'C' : 'D';
+        const faderStatus = dev?.fader_status?.[faderKey];
+        const isChanMuted = faderStatus && faderStatus.mute_state !== 'Unmuted';
+        const chanVol = getChannelVolume(dev, chan);
+        const isZeroVol = chanVol <= 2; // <= 1% volume or 0 on 0-255 scale
+
+        let condMet = false;
+        if (cfg.condition === 'zero_only') condMet = isZeroVol;
+        else if (cfg.condition === 'muted_only') condMet = isChanMuted;
+        else condMet = isZeroVol || isChanMuted;
+
+        const peak = cachedChannelLevels[chan] ?? cachedChannelLevels[chan.toLowerCase()] ?? 0;
+        const peakPct = peak * 100;
+        const isAudioActive = (simulateChannel === chan) || (peakPct >= (cfg.threshold || 2));
+
+        if (isAudioActive) {
+          state.lastAudioTime = now;
+        }
+
+        // Audio hold for 2000ms prevents flashing from stopping between beats or brief pauses
+        const hasRecentAudio = (now - state.lastAudioTime < 2000);
+
+        if (condMet && hasRecentAudio) {
+          if (alertSettings.toast?.enabled && cfg.toastEnabled !== false) {
+            showToastNotification('MUTED ' + chan.toUpperCase(), cfg.flashColor);
+          }
+          if (cfg.enabled) {
+            const flashCol = cleanHex(cfg.flashColor || '#FF1744');
+            saveOriginalButtonColor(btnName, flashCol);
+            state.isActive = true;
+
+            const speed = cfg.speed || 250;
+            if (now - state.lastFlashTime >= speed) {
+              state.flashPhase = !state.flashPhase;
+              state.lastFlashTime = now;
+
+              const secCol = cleanHex(cfg.secondaryColor || '000000');
+              const curCol = state.flashPhase ? flashCol : secCol;
+
+              // Set both colour_one and colour_two so it blinks whether unmuted (0% vol) or muted!
+              window.$.send_command(serial, {
+                SetButtonColours: [btnName, curCol, curCol]
+              });
+            }
+          }
+        } else if (state.isActive) {
+          restoreOriginalButtonColor(btnName);
+          state.isActive = false;
+          state.flashPhase = false;
+        }
+      }
+    }, 75);
+  }
+
+  function renderAlertsPanel(container, forceRebuild = false) {
+    let panel = document.getElementById('modern-lighting-alerts-panel');
+    if (!panel) {
+      isMutatingAlerts = true;
+      panel = document.createElement('div');
+      panel.id = 'modern-lighting-alerts-panel';
+      container.appendChild(panel);
+      buildAlertsPanelContent(panel);
+      isMutatingAlerts = false;
+    } else {
+      if (forceRebuild) {
+        isMutatingAlerts = true;
+        buildAlertsPanelContent(panel);
+        isMutatingAlerts = false;
+      }
+    }
+    if (panel.style.display !== 'flex') {
+      panel.style.setProperty('display', 'flex', 'important');
+    }
+  }
+
+  function buildAlertsPanelContent(panel) {
+    const talk = alertSettings.talkMuted;
+    const chatCfg = alertSettings.channels?.Chat || DEFAULT_CHANNEL_CONFIGS.Chat;
+    const musicCfg = alertSettings.channels?.Music || DEFAULT_CHANNEL_CONFIGS.Music;
+    const systemCfg = alertSettings.channels?.System || DEFAULT_CHANNEL_CONFIGS.System;
+    const toastCfg = alertSettings.toast || DEFAULT_ALERT_SETTINGS.toast;
+
+    panel.innerHTML = `
+      <div class="modern-alerts-container">
+        <!-- Left Side: 2x2 Channels Grid -->
+        <div class="alerts-left-column">
+          <div class="alerts-2x2-grid">
+            <!-- 1. Mic Slider -->
+            <div class="alerts-card-compact" id="card-alert-mic">
+              <div class="alerts-card-compact-header">
+                <div class="alerts-card-compact-title-group">
+                  <div class="alerts-card-compact-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                      <line x1="12" y1="19" x2="12" y2="23"></line>
+                      <line x1="8" y1="23" x2="16" y2="23"></line>
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="alerts-card-compact-title">MIC</div>
+                    <div class="alerts-card-compact-desc">Talking while muted</div>
+                  </div>
+                </div>
+                <div class="alerts-card-compact-toggles">
+                  <div class="alerts-inline-toggle" title="Toggle Hardware Blink">
+                    <span class="alerts-toggle-label">Blink</span>
+                    <label class="modern-toggle">
+                      <input type="checkbox" id="setting-mic-enabled" ${talk.enabled ? 'checked' : ''}>
+                      <span class="modern-toggle-slider"></span>
+                    </label>
+                  </div>
+                  <div class="alerts-inline-toggle" title="Toggle Screen Toast Notification">
+                    <span class="alerts-toggle-label">Toast</span>
+                    <label class="modern-toggle">
+                      <input type="checkbox" id="setting-mic-toast" ${talk.toastEnabled !== false ? 'checked' : ''}>
+                      <span class="modern-toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="alerts-card-compact-body">
+                <div class="alerts-color-control">
+                  <div class="alerts-color-swatch-wrap">
+                    <div class="alerts-color-swatch" id="mic-color-swatch" style="background-color: ${talk.flashColor}"></div>
+                    <input type="color" class="alerts-color-input-native" id="setting-mic-color" value="${talk.flashColor}">
+                  </div>
+                  <input type="text" class="alerts-hex-input" id="setting-mic-hex" value="${talk.flashColor}" maxlength="7">
+                </div>
+                <div class="alerts-presets-list" id="mic-color-presets">
+                  <span class="alerts-preset-dot" data-col="#FF1744" style="background: #FF1744;" title="Red"></span>
+                  <span class="alerts-preset-dot" data-col="#FF9100" style="background: #FF9100;" title="Orange"></span>
+                  <span class="alerts-preset-dot" data-col="#A855F7" style="background: #A855F7;" title="Purple"></span>
+                  <span class="alerts-preset-dot" data-col="#00E5FF" style="background: #00E5FF;" title="Cyan"></span>
+                  <span class="alerts-preset-dot" data-col="#10B981" style="background: #10B981;" title="Green"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Voice Chat Slider -->
+            <div class="alerts-card-compact" id="card-alert-chat">
+              <div class="alerts-card-compact-header">
+                <div class="alerts-card-compact-title-group">
+                  <div class="alerts-card-compact-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="alerts-card-compact-title">VOICE CHAT</div>
+                    <div class="alerts-card-compact-desc">Sound while 0% or muted</div>
+                  </div>
+                </div>
+                <div class="alerts-card-compact-toggles">
+                  <div class="alerts-inline-toggle" title="Toggle Hardware Blink">
+                    <span class="alerts-toggle-label">Blink</span>
+                    <label class="modern-toggle">
+                      <input type="checkbox" id="setting-chat-enabled" ${chatCfg.enabled ? 'checked' : ''}>
+                      <span class="modern-toggle-slider"></span>
+                    </label>
+                  </div>
+                  <div class="alerts-inline-toggle" title="Toggle Screen Toast Notification">
+                    <span class="alerts-toggle-label">Toast</span>
+                    <label class="modern-toggle">
+                      <input type="checkbox" id="setting-chat-toast" ${chatCfg.toastEnabled !== false ? 'checked' : ''}>
+                      <span class="modern-toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="alerts-card-compact-body">
+                <div class="alerts-color-control">
+                  <div class="alerts-color-swatch-wrap">
+                    <div class="alerts-color-swatch" id="chat-color-swatch" style="background-color: ${chatCfg.flashColor}"></div>
+                    <input type="color" class="alerts-color-input-native" id="setting-chat-color" value="${chatCfg.flashColor}">
+                  </div>
+                  <input type="text" class="alerts-hex-input" id="setting-chat-hex" value="${chatCfg.flashColor}" maxlength="7">
+                </div>
+                <div class="alerts-presets-list" id="chat-color-presets">
+                  <span class="alerts-preset-dot" data-col="#FF1744" style="background: #FF1744;" title="Red"></span>
+                  <span class="alerts-preset-dot" data-col="#FF9100" style="background: #FF9100;" title="Orange"></span>
+                  <span class="alerts-preset-dot" data-col="#A855F7" style="background: #A855F7;" title="Purple"></span>
+                  <span class="alerts-preset-dot" data-col="#00E5FF" style="background: #00E5FF;" title="Cyan"></span>
+                  <span class="alerts-preset-dot" data-col="#10B981" style="background: #10B981;" title="Green"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Music Slider -->
+            <div class="alerts-card-compact" id="card-alert-music">
+              <div class="alerts-card-compact-header">
+                <div class="alerts-card-compact-title-group">
+                  <div class="alerts-card-compact-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M9 18V5l12-2v13"></path>
+                      <circle cx="6" cy="18" r="3"></circle>
+                      <circle cx="18" cy="16" r="3"></circle>
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="alerts-card-compact-title">MUSIC</div>
+                    <div class="alerts-card-compact-desc">Sound while 0% or muted</div>
+                  </div>
+                </div>
+                <div class="alerts-card-compact-toggles">
+                  <div class="alerts-inline-toggle" title="Toggle Hardware Blink">
+                    <span class="alerts-toggle-label">Blink</span>
+                    <label class="modern-toggle">
+                      <input type="checkbox" id="setting-music-enabled" ${musicCfg.enabled ? 'checked' : ''}>
+                      <span class="modern-toggle-slider"></span>
+                    </label>
+                  </div>
+                  <div class="alerts-inline-toggle" title="Toggle Screen Toast Notification">
+                    <span class="alerts-toggle-label">Toast</span>
+                    <label class="modern-toggle">
+                      <input type="checkbox" id="setting-music-toast" ${musicCfg.toastEnabled !== false ? 'checked' : ''}>
+                      <span class="modern-toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="alerts-card-compact-body">
+                <div class="alerts-color-control">
+                  <div class="alerts-color-swatch-wrap">
+                    <div class="alerts-color-swatch" id="music-color-swatch" style="background-color: ${musicCfg.flashColor}"></div>
+                    <input type="color" class="alerts-color-input-native" id="setting-music-color" value="${musicCfg.flashColor}">
+                  </div>
+                  <input type="text" class="alerts-hex-input" id="setting-music-hex" value="${musicCfg.flashColor}" maxlength="7">
+                </div>
+                <div class="alerts-presets-list" id="music-color-presets">
+                  <span class="alerts-preset-dot" data-col="#FF1744" style="background: #FF1744;" title="Red"></span>
+                  <span class="alerts-preset-dot" data-col="#FF9100" style="background: #FF9100;" title="Orange"></span>
+                  <span class="alerts-preset-dot" data-col="#A855F7" style="background: #A855F7;" title="Purple"></span>
+                  <span class="alerts-preset-dot" data-col="#00E5FF" style="background: #00E5FF;" title="Cyan"></span>
+                  <span class="alerts-preset-dot" data-col="#10B981" style="background: #10B981;" title="Green"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. System Slider -->
+            <div class="alerts-card-compact" id="card-alert-system">
+              <div class="alerts-card-compact-header">
+                <div class="alerts-card-compact-title-group">
+                  <div class="alerts-card-compact-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="alerts-card-compact-title">SYSTEM</div>
+                    <div class="alerts-card-compact-desc">Sound while 0% or muted</div>
+                  </div>
+                </div>
+                <div class="alerts-card-compact-toggles">
+                  <div class="alerts-inline-toggle" title="Toggle Hardware Blink">
+                    <span class="alerts-toggle-label">Blink</span>
+                    <label class="modern-toggle">
+                      <input type="checkbox" id="setting-system-enabled" ${systemCfg.enabled ? 'checked' : ''}>
+                      <span class="modern-toggle-slider"></span>
+                    </label>
+                  </div>
+                  <div class="alerts-inline-toggle" title="Toggle Screen Toast Notification">
+                    <span class="alerts-toggle-label">Toast</span>
+                    <label class="modern-toggle">
+                      <input type="checkbox" id="setting-system-toast" ${systemCfg.toastEnabled !== false ? 'checked' : ''}>
+                      <span class="modern-toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="alerts-card-compact-body">
+                <div class="alerts-color-control">
+                  <div class="alerts-color-swatch-wrap">
+                    <div class="alerts-color-swatch" id="system-color-swatch" style="background-color: ${systemCfg.flashColor}"></div>
+                    <input type="color" class="alerts-color-input-native" id="setting-system-color" value="${systemCfg.flashColor}">
+                  </div>
+                  <input type="text" class="alerts-hex-input" id="setting-system-hex" value="${systemCfg.flashColor}" maxlength="7">
+                </div>
+                <div class="alerts-presets-list" id="system-color-presets">
+                  <span class="alerts-preset-dot" data-col="#FF1744" style="background: #FF1744;" title="Red"></span>
+                  <span class="alerts-preset-dot" data-col="#FF9100" style="background: #FF9100;" title="Orange"></span>
+                  <span class="alerts-preset-dot" data-col="#A855F7" style="background: #A855F7;" title="Purple"></span>
+                  <span class="alerts-preset-dot" data-col="#00E5FF" style="background: #00E5FF;" title="Cyan"></span>
+                  <span class="alerts-preset-dot" data-col="#10B981" style="background: #10B981;" title="Green"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Side: Toast Notification Options -->
+        <div class="alerts-right-column">
+          <div class="alerts-toast-card">
+            <div class="alerts-toast-card-header">
+              <div class="alerts-card-compact-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+              </div>
+              <div>
+                <div class="alerts-toast-card-title">TOAST OVERLAY</div>
+                <div class="alerts-toast-card-desc">Always on top of all apps</div>
+              </div>
+            </div>
+
+            <div class="alerts-toast-controls">
+              <!-- Toggles Row -->
+              <div class="alerts-toast-toggles-row">
+                <div class="alerts-toast-toggle-item">
+                  <span class="alerts-toast-label">Enable Toast</span>
+                  <label class="modern-toggle" title="Master toggle for on-screen toast">
+                    <input type="checkbox" id="setting-toast-enabled" ${toastCfg.enabled !== false ? 'checked' : ''}>
+                    <span class="modern-toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="alerts-toast-toggle-item">
+                  <span class="alerts-toast-label">Hide Fullscreen</span>
+                  <label class="modern-toggle" title="Disable toast in fullscreen games/apps only">
+                    <input type="checkbox" id="setting-toast-fullscreen" ${toastCfg.disable_fullscreen ? 'checked' : ''}>
+                    <span class="modern-toggle-slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Position Row -->
+              <div class="alerts-toast-row">
+                <span class="alerts-toast-label">Position</span>
+                <select class="alerts-toast-select" id="setting-toast-position">
+                  <option value="top-center" ${toastCfg.position === 'top-center' ? 'selected' : ''}>Top Center</option>
+                  <option value="top-left" ${toastCfg.position === 'top-left' ? 'selected' : ''}>Top Left</option>
+                  <option value="top-right" ${toastCfg.position === 'top-right' ? 'selected' : ''}>Top Right</option>
+                  <option value="bottom-center" ${toastCfg.position === 'bottom-center' ? 'selected' : ''}>Bottom Center</option>
+                  <option value="bottom-left" ${toastCfg.position === 'bottom-left' ? 'selected' : ''}>Bottom Left</option>
+                  <option value="bottom-right" ${toastCfg.position === 'bottom-right' ? 'selected' : ''}>Bottom Right</option>
+                  <option value="center-left" ${toastCfg.position === 'center-left' ? 'selected' : ''}>Center Left</option>
+                  <option value="center-right" ${toastCfg.position === 'center-right' ? 'selected' : ''}>Center Right</option>
+                  <option value="center" ${toastCfg.position === 'center' ? 'selected' : ''}>Center</option>
+                </select>
+              </div>
+
+              <!-- Duration Row -->
+              <div class="alerts-toast-row">
+                <div class="alerts-toast-slider-group">
+                  <div class="alerts-toast-slider-header">
+                    <span class="alerts-toast-label">Duration</span>
+                    <span class="alerts-val-badge" id="toast-duration-badge">${((toastCfg.show_duration_ms || 3000) / 1000).toFixed(1)}s</span>
+                  </div>
+                  <input type="range" class="alerts-range" id="setting-toast-duration" min="1000" max="8000" step="500" value="${toastCfg.show_duration_ms || 3000}">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    function wireCard(prefix, cfg, getBtnFn) {
+      const toggle = panel.querySelector(`#setting-${prefix}-enabled`);
+      if (toggle) {
+        toggle.addEventListener('change', (e) => {
+          cfg.enabled = e.target.checked;
+          saveAlertSettings();
+          if (!cfg.enabled) {
+            const btn = getBtnFn();
+            if (Array.isArray(btn)) btn.forEach(restoreOriginalButtonColor);
+            else if (btn) restoreOriginalButtonColor(btn);
+          }
+        });
+      }
+
+      const toastToggle = panel.querySelector(`#setting-${prefix}-toast`);
+      if (toastToggle) {
+        toastToggle.addEventListener('change', (e) => {
+          cfg.toastEnabled = e.target.checked;
+          saveAlertSettings();
+        });
+      }
+
+      const colorInput = panel.querySelector(`#setting-${prefix}-color`);
+      const hexInput = panel.querySelector(`#setting-${prefix}-hex`);
+      const swatch = panel.querySelector(`#${prefix}-color-swatch`);
+
+      function setColor(hex) {
+        if (!hex.startsWith('#')) hex = '#' + hex;
+        cfg.flashColor = hex;
+        if (swatch) swatch.style.backgroundColor = hex;
+        if (colorInput) colorInput.value = hex;
+        if (hexInput) hexInput.value = hex.toUpperCase();
+        saveAlertSettings();
+      }
+
+      if (colorInput) colorInput.addEventListener('input', (e) => setColor(e.target.value));
+      if (hexInput) hexInput.addEventListener('change', (e) => setColor(e.target.value));
+
+      panel.querySelectorAll(`#${prefix}-color-presets .alerts-preset-dot`).forEach(dot => {
+        dot.addEventListener('click', () => setColor(dot.getAttribute('data-col')));
+      });
+    }
+
+    wireCard('mic', talk, () => ['Cough', getMicFaderButton()]);
+    wireCard('chat', chatCfg, () => getFaderButtonForChannel('Chat'));
+    wireCard('music', musicCfg, () => getFaderButtonForChannel('Music'));
+    wireCard('system', systemCfg, () => getFaderButtonForChannel('System'));
+
+    // Wire Toast Options
+    const toastToggle = panel.querySelector('#setting-toast-enabled');
+    if (toastToggle) {
+      toastToggle.addEventListener('change', (e) => {
+        toastCfg.enabled = e.target.checked;
+        saveAlertSettings();
+      });
+    }
+
+    const fsToggle = panel.querySelector('#setting-toast-fullscreen');
+    if (fsToggle) {
+      fsToggle.addEventListener('change', (e) => {
+        toastCfg.disable_fullscreen = e.target.checked;
+        saveAlertSettings();
+      });
+    }
+
+    const posSelect = panel.querySelector('#setting-toast-position');
+    if (posSelect) {
+      posSelect.addEventListener('change', (e) => {
+        toastCfg.position = e.target.value;
+        saveAlertSettings();
+      });
+    }
+
+    const durationRange = panel.querySelector('#setting-toast-duration');
+    const durationBadge = panel.querySelector('#toast-duration-badge');
+    if (durationRange) {
+      durationRange.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        toastCfg.show_duration_ms = val;
+        if (durationBadge) durationBadge.textContent = (val / 1000).toFixed(1) + 's';
+        saveAlertSettings();
+      });
+    }
+  }
+
+  function hideAlertsPanel() {
+    const panel = document.getElementById('modern-lighting-alerts-panel');
+    if (panel && panel.style.display !== 'none') {
+      panel.style.setProperty('display', 'none', 'important');
+    }
+    const container = document.querySelector('.sections[data-v-774daee4]');
+    if (container && container.parentElement) {
+      const children = Array.from(container.parentElement.children);
+      children.forEach(ch => {
+        if (ch !== container && ch !== panel) {
+          ch.style.removeProperty('display');
+        }
+      });
+    }
+  }
+
+  function setupLightingAlertsSystem() {
+    initAlertEngine();
+
+    function injectAlertsTab() {
+      if (isMutatingAlerts) return;
+      const sections = document.querySelector('.sections[data-v-774daee4]');
+      if (!sections) {
+        if (isAlertsSubtabActive) {
+          hideAlertsPanel();
+        }
+        return;
+      }
+
+      // Check if button already injected
+      let alertsBtn = sections.querySelector('#modern-subtab-alerts');
+      if (!alertsBtn) {
+        alertsBtn = document.createElement('button');
+        alertsBtn.id = 'modern-subtab-alerts';
+        alertsBtn.className = 'button modern-alerts-subtab-btn';
+        alertsBtn.setAttribute('data-v-774daee4', '');
+        alertsBtn.setAttribute('role', 'tab');
+        alertsBtn.setAttribute('tabindex', '-1');
+        alertsBtn.textContent = 'Alerts';
+
+        // Insert right after Cough button (or at the end)
+        const buttons = Array.from(sections.querySelectorAll('.button'));
+        const coughBtn = buttons.find(b => {
+          const t = (b.textContent || '').trim().toLowerCase();
+          return t.includes('cough') || t.includes('bleep');
+        });
+
+        if (coughBtn && coughBtn.nextSibling) {
+          sections.insertBefore(alertsBtn, coughBtn.nextSibling);
+        } else {
+          sections.appendChild(alertsBtn);
+        }
+
+        alertsBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          isAlertsSubtabActive = true;
+
+          // Deactivate all sibling buttons
+          sections.querySelectorAll('.button').forEach(b => {
+            b.classList.remove('active');
+            b.setAttribute('tabindex', '-1');
+            b.setAttribute('aria-selected', 'false');
+          });
+
+          alertsBtn.classList.add('active');
+          alertsBtn.setAttribute('tabindex', '0');
+          alertsBtn.setAttribute('aria-selected', 'true');
+
+          // Hide Vue sibling panel and show our panel
+          if (sections.parentElement) {
+            Array.from(sections.parentElement.children).forEach(ch => {
+              if (ch !== sections && ch.id !== 'modern-lighting-alerts-panel') {
+                if (ch.style.display !== 'none') {
+                  ch.style.setProperty('display', 'none', 'important');
+                }
+              }
+            });
+            renderAlertsPanel(sections.parentElement);
+          }
+        });
+      }
+
+      // Hook click on other buttons to restore normal Vue view
+      sections.querySelectorAll('.button:not(#modern-subtab-alerts)').forEach(btn => {
+        if (!btn._alertsHooked) {
+          btn._alertsHooked = true;
+          btn.addEventListener('click', () => {
+            isAlertsSubtabActive = false;
+            const b = sections.querySelector('#modern-subtab-alerts');
+            if (b) {
+              b.classList.remove('active');
+              b.setAttribute('aria-selected', 'false');
+            }
+            hideAlertsPanel();
+          });
+        }
+      });
+
+      // Maintain active state if Alerts subtab was active
+      if (isAlertsSubtabActive) {
+        if (!alertsBtn.classList.contains('active')) {
+          alertsBtn.classList.add('active');
+        }
+        if (sections.parentElement) {
+          Array.from(sections.parentElement.children).forEach(ch => {
+            if (ch !== sections && ch.id !== 'modern-lighting-alerts-panel') {
+              if (ch.style.display !== 'none') {
+                ch.style.setProperty('display', 'none', 'important');
+              }
+            }
+          });
+          const existingPanel = document.getElementById('modern-lighting-alerts-panel');
+          if (!existingPanel || existingPanel.style.display === 'none') {
+            renderAlertsPanel(sections.parentElement);
+          }
+        }
+      }
+    }
+
+    const obs = new MutationObserver(injectAlertsTab);
+    obs.observe(document.body, { childList: true, subtree: true });
+    injectAlertsTab();
+  }
+
   let isMixerCollapsed = true;
 
   function getChannelOrder(el) {
@@ -165,6 +1128,7 @@
     if (text.includes('microphone') || text.startsWith('mic')) return 0;
     if (text.includes('voice chat') || text.includes('chat')) return 1;
     if (text.includes('music')) return 2;
+
     if (text.includes('system')) return 3;
     if (text.includes('game')) return 5;
     if (text.includes('console')) return 6;

@@ -100,7 +100,13 @@ windows = { workspace = true, features = [
     "Win32_Graphics_Dwm",
     "Win32_System_LibraryLoader",
     "Win32_System_Shutdown",
-    "Win32_System_RemoteDesktop"
+    "Win32_System_RemoteDesktop",
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_UI_Shell_PropertiesSystem",
 ] }
 
 [build-dependencies]
