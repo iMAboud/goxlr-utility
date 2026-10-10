@@ -240,8 +240,8 @@ pub fn apply_titlebar_color() {
     };
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetWindowTextLengthW, GetWindowTextW, IsWindowVisible, LoadIconW, SendMessageW,
-        ICON_BIG, ICON_SMALL, WM_SETICON,
+        EnumWindows, GetWindowTextLengthW, GetWindowTextW, ICON_BIG, ICON_SMALL, IsWindowVisible,
+        LoadIconW, SendMessageW, WM_SETICON,
     };
     use windows::core::{BOOL, PCWSTR};
 
@@ -250,7 +250,8 @@ pub fn apply_titlebar_color() {
     let dark_mode: BOOL = BOOL(1);
 
     let instance = unsafe { GetModuleHandleW(PCWSTR::null()) }.unwrap_or_default();
-    let icon = unsafe { LoadIconW(Some(instance.into()), PCWSTR(1 as *const u16)) }.unwrap_or_default();
+    let icon =
+        unsafe { LoadIconW(Some(instance.into()), PCWSTR(1 as *const u16)) }.unwrap_or_default();
 
     unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
         let (color_ptr, dark_ptr, icon_val) =

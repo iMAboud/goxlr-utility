@@ -83,7 +83,11 @@ pub fn set_config(new_config: ToastConfig) {
 
 fn config_path() -> std::path::PathBuf {
     directories::BaseDirs::new()
-        .map(|b| b.config_dir().join("com.frostycoolslug.goxlr-utility-ui").join("alert-toast-config.json"))
+        .map(|b| {
+            b.config_dir()
+                .join("com.frostycoolslug.goxlr-utility-ui")
+                .join("alert-toast-config.json")
+        })
         .unwrap_or_else(|| std::path::PathBuf::from("alert-toast-config.json"))
 }
 
@@ -113,21 +117,23 @@ fn save_config_to_disk(cfg: &ToastConfig) {
 mod win_overlay {
     use super::*;
     use std::mem;
-    use windows::Win32::Foundation::{COLORREF, FALSE, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
+    use windows::Win32::Foundation::{
+        COLORREF, FALSE, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM,
+    };
     use windows::Win32::Graphics::Gdi::{
-        CreateCompatibleDC, CreateDIBSection, CreateFontW, DeleteDC, DeleteObject, DrawTextW,
-        SelectObject, SetBkMode, SetTextColor, AC_SRC_ALPHA, AC_SRC_OVER, BI_RGB, BITMAPINFO,
-        BITMAPINFOHEADER, BLENDFUNCTION, DIB_RGB_COLORS, DT_CENTER, DT_SINGLELINE, DT_VCENTER,
-        FONT_CHARSET, FONT_CLIP_PRECISION, FONT_OUTPUT_PRECISION, FONT_QUALITY, FW_BOLD,
-        TRANSPARENT,
+        AC_SRC_ALPHA, AC_SRC_OVER, BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BLENDFUNCTION,
+        CreateCompatibleDC, CreateDIBSection, CreateFontW, DIB_RGB_COLORS, DT_CENTER,
+        DT_SINGLELINE, DT_VCENTER, DeleteDC, DeleteObject, DrawTextW, FONT_CHARSET,
+        FONT_CLIP_PRECISION, FONT_OUTPUT_PRECISION, FONT_QUALITY, FW_BOLD, SelectObject, SetBkMode,
+        SetTextColor, TRANSPARENT,
     };
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows::Win32::UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DispatchMessageW, GetForegroundWindow, GetMessageW,
-        GetSystemMetrics, GetWindowRect, KillTimer, PostMessageW, RegisterClassW, SetTimer,
-        ShowWindow, TranslateMessage, UpdateLayeredWindow, SM_CXSCREEN, SM_CYSCREEN,
-        SW_HIDE, SW_SHOWNOACTIVATE, ULW_ALPHA, WM_TIMER, WM_USER, WNDCLASSW, WS_EX_LAYERED,
-        WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
+        GetSystemMetrics, GetWindowRect, KillTimer, PostMessageW, RegisterClassW, SM_CXSCREEN,
+        SM_CYSCREEN, SW_HIDE, SW_SHOWNOACTIVATE, SetTimer, ShowWindow, TranslateMessage, ULW_ALPHA,
+        UpdateLayeredWindow, WM_TIMER, WM_USER, WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+        WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
     };
     use windows::core::w;
 
@@ -230,7 +236,12 @@ mod win_overlay {
             let old_font = SelectObject(mem_dc, font.into());
 
             let mut calc_rect = RECT::default();
-            DrawTextW(mem_dc, &mut wide[..], &mut calc_rect, windows::Win32::Graphics::Gdi::DT_CALCRECT | DT_SINGLELINE);
+            DrawTextW(
+                mem_dc,
+                &mut wide[..],
+                &mut calc_rect,
+                windows::Win32::Graphics::Gdi::DT_CALCRECT | DT_SINGLELINE,
+            );
             let text_w = calc_rect.right - calc_rect.left;
             let w: i32 = (text_w + 24).max(64);
             let h: i32 = 30;
@@ -261,22 +272,16 @@ mod win_overlay {
             };
 
             let mut pv_bits: *mut core::ffi::c_void = core::ptr::null_mut();
-            let hbitmap = match CreateDIBSection(
-                Some(mem_dc),
-                &bmi,
-                DIB_RGB_COLORS,
-                &mut pv_bits,
-                None,
-                0,
-            ) {
-                Ok(bm) => bm,
-                Err(_) => {
-                    SelectObject(mem_dc, old_font);
-                    let _ = DeleteObject(font.into());
-                    let _ = DeleteDC(mem_dc);
-                    return;
-                }
-            };
+            let hbitmap =
+                match CreateDIBSection(Some(mem_dc), &bmi, DIB_RGB_COLORS, &mut pv_bits, None, 0) {
+                    Ok(bm) => bm,
+                    Err(_) => {
+                        SelectObject(mem_dc, old_font);
+                        let _ = DeleteObject(font.into());
+                        let _ = DeleteDC(mem_dc);
+                        return;
+                    }
+                };
 
             let old_bm = SelectObject(mem_dc, hbitmap.into());
 
@@ -323,9 +328,12 @@ mod win_overlay {
 
                         let (cr, cg, cb) = if is_rim {
                             let rim_t = (1.3 - d) / 1.3;
-                            let blend_r = (r as f32) * (1.0 - rim_t * 0.45) + 255.0 * (rim_t * 0.45);
-                            let blend_g = (g as f32) * (1.0 - rim_t * 0.45) + 255.0 * (rim_t * 0.45);
-                            let blend_b = (b as f32) * (1.0 - rim_t * 0.45) + 255.0 * (rim_t * 0.45);
+                            let blend_r =
+                                (r as f32) * (1.0 - rim_t * 0.45) + 255.0 * (rim_t * 0.45);
+                            let blend_g =
+                                (g as f32) * (1.0 - rim_t * 0.45) + 255.0 * (rim_t * 0.45);
+                            let blend_b =
+                                (b as f32) * (1.0 - rim_t * 0.45) + 255.0 * (rim_t * 0.45);
                             (blend_r, blend_g, blend_b)
                         } else {
                             (r as f32, g as f32, b as f32)
@@ -353,7 +361,12 @@ mod win_overlay {
                 right: w,
                 bottom: h,
             };
-            DrawTextW(mem_dc, &mut wide[..], &mut text_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            DrawTextW(
+                mem_dc,
+                &mut wide[..],
+                &mut text_rect,
+                DT_CENTER | DT_VCENTER | DT_SINGLELINE,
+            );
 
             SelectObject(mem_dc, old_font);
             let _ = DeleteObject(font.into());
@@ -458,45 +471,48 @@ mod win_overlay {
             return;
         }
 
-        std::thread::spawn(|| {
-            unsafe {
-                let h_instance: HINSTANCE = GetModuleHandleW(None).unwrap_or_default().into();
-                let class_name = w!("GoXLRToastOverlayClass");
+        std::thread::spawn(|| unsafe {
+            let h_instance: HINSTANCE = GetModuleHandleW(None).unwrap_or_default().into();
+            let class_name = w!("GoXLRToastOverlayClass");
 
-                let wc = WNDCLASSW {
-                    lpfnWndProc: Some(overlay_wnd_proc),
-                    hInstance: h_instance,
-                    lpszClassName: class_name,
-                    ..Default::default()
-                };
-                let _ = RegisterClassW(&wc);
+            let wc = WNDCLASSW {
+                lpfnWndProc: Some(overlay_wnd_proc),
+                hInstance: h_instance,
+                lpszClassName: class_name,
+                ..Default::default()
+            };
+            let _ = RegisterClassW(&wc);
 
-                let hwnd = CreateWindowExW(
-                    WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
-                    class_name,
-                    w!("GoXLR Toast Overlay"),
-                    WS_POPUP,
-                    0,
-                    0,
-                    360,
-                    44,
-                    None,
-                    None,
-                    Some(h_instance),
-                    None,
-                ).unwrap_or_default();
+            let hwnd = CreateWindowExW(
+                WS_EX_TOPMOST
+                    | WS_EX_TOOLWINDOW
+                    | WS_EX_LAYERED
+                    | WS_EX_NOACTIVATE
+                    | WS_EX_TRANSPARENT,
+                class_name,
+                w!("GoXLR Toast Overlay"),
+                WS_POPUP,
+                0,
+                0,
+                360,
+                44,
+                None,
+                None,
+                Some(h_instance),
+                None,
+            )
+            .unwrap_or_default();
 
-                if hwnd.0 != 0 as _ {
-                    OVERLAY_HWND_RAW.store(hwnd.0 as isize, Ordering::Relaxed);
-                    CURRENT_MSG.get_or_init(|| Arc::new(Mutex::new("MUTED".to_string())));
-                    CURRENT_COLOR.get_or_init(|| Arc::new(Mutex::new((0, 229, 255))));
+            if hwnd.0 != 0 as _ {
+                OVERLAY_HWND_RAW.store(hwnd.0 as isize, Ordering::Relaxed);
+                CURRENT_MSG.get_or_init(|| Arc::new(Mutex::new("MUTED".to_string())));
+                CURRENT_COLOR.get_or_init(|| Arc::new(Mutex::new((0, 229, 255))));
 
-                    let mut msg = mem::MaybeUninit::uninit();
-                    while GetMessageW(msg.as_mut_ptr(), None, 0, 0) != FALSE {
-                        let m = msg.assume_init();
-                        let _ = TranslateMessage(&m);
-                        DispatchMessageW(&m);
-                    }
+                let mut msg = mem::MaybeUninit::uninit();
+                while GetMessageW(msg.as_mut_ptr(), None, 0, 0) != FALSE {
+                    let m = msg.assume_init();
+                    let _ = TranslateMessage(&m);
+                    DispatchMessageW(&m);
                 }
             }
         });
@@ -529,7 +545,12 @@ mod win_overlay {
         if raw != 0 {
             let hwnd = HWND(raw as *mut core::ffi::c_void);
             unsafe {
-                let _ = PostMessageW(Some(hwnd), WM_TRIGGER_TOAST, WPARAM(duration as usize), LPARAM(0));
+                let _ = PostMessageW(
+                    Some(hwnd),
+                    WM_TRIGGER_TOAST,
+                    WPARAM(duration as usize),
+                    LPARAM(0),
+                );
             }
         }
     }

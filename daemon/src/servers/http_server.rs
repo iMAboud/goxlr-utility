@@ -147,42 +147,65 @@ pub async fn spawn_http_server(
                 let mic_peak = levels.get("Mic").copied().unwrap_or(0.0);
                 if is_mic_muted && mic_peak > 0.04 && cfg.mic_toast {
                     let col = cfg.mic_color.clone().unwrap_or_else(|| cfg.color.clone());
-                    crate::servers::toast_overlay::trigger_toast(crate::servers::toast_overlay::ToastTriggerPayload {
-                        message: "TALKING WHILE MUTED".to_string(),
-                        color: Some(col),
-                        position: Some(cfg.position.clone()),
-                        duration_ms: Some(cfg.show_duration_ms),
-                    });
+                    crate::servers::toast_overlay::trigger_toast(
+                        crate::servers::toast_overlay::ToastTriggerPayload {
+                            message: "TALKING WHILE MUTED".to_string(),
+                            color: Some(col),
+                            position: Some(cfg.position.clone()),
+                            duration_ms: Some(cfg.show_duration_ms),
+                        },
+                    );
                     last_toast = std::time::Instant::now();
                     break;
                 }
 
                 // 2. Channels check (Voice Chat, Music, System)
                 let channels = [
-                    (goxlr_types::ChannelName::Chat, "Voice Chat", "Chat", cfg.chat_toast),
-                    (goxlr_types::ChannelName::Music, "Music", "Music", cfg.music_toast),
-                    (goxlr_types::ChannelName::System, "System", "System", cfg.system_toast),
+                    (
+                        goxlr_types::ChannelName::Chat,
+                        "Voice Chat",
+                        "Chat",
+                        cfg.chat_toast,
+                    ),
+                    (
+                        goxlr_types::ChannelName::Music,
+                        "Music",
+                        "Music",
+                        cfg.music_toast,
+                    ),
+                    (
+                        goxlr_types::ChannelName::System,
+                        "System",
+                        "System",
+                        cfg.system_toast,
+                    ),
                 ];
 
                 for (ch_enum, _ch_title, ch_key, ch_toast_active) in channels {
                     let peak = levels.get(ch_key).copied().unwrap_or(0.0);
                     if peak > 0.04 && ch_toast_active {
                         let vol = device.levels.volumes[ch_enum];
-                        let is_muted = device.fader_status.values().any(|f| f.channel == ch_enum && f.mute_state != goxlr_types::MuteState::Unmuted);
+                        let is_muted = device.fader_status.values().any(|f| {
+                            f.channel == ch_enum && f.mute_state != goxlr_types::MuteState::Unmuted
+                        });
                         if vol == 0 || is_muted {
                             let col = match ch_key {
                                 "Chat" => cfg.chat_color.as_ref(),
                                 "Music" => cfg.music_color.as_ref(),
                                 "System" => cfg.system_color.as_ref(),
                                 _ => None,
-                            }.unwrap_or(&cfg.color).clone();
+                            }
+                            .unwrap_or(&cfg.color)
+                            .clone();
 
-                            crate::servers::toast_overlay::trigger_toast(crate::servers::toast_overlay::ToastTriggerPayload {
-                                message: format!("MUTED {}", ch_key.to_uppercase()),
-                                color: Some(col),
-                                position: Some(cfg.position.clone()),
-                                duration_ms: Some(cfg.show_duration_ms),
-                            });
+                            crate::servers::toast_overlay::trigger_toast(
+                                crate::servers::toast_overlay::ToastTriggerPayload {
+                                    message: format!("MUTED {}", ch_key.to_uppercase()),
+                                    color: Some(col),
+                                    position: Some(cfg.position.clone()),
+                                    duration_ms: Some(cfg.show_duration_ms),
+                                },
+                            );
                             last_toast = std::time::Instant::now();
                             break;
                         }
@@ -424,13 +447,17 @@ async fn get_toast_settings() -> HttpResponse {
 }
 
 #[post("/api/toast/settings")]
-async fn set_toast_settings(config: web::Json<crate::servers::toast_overlay::ToastConfig>) -> HttpResponse {
+async fn set_toast_settings(
+    config: web::Json<crate::servers::toast_overlay::ToastConfig>,
+) -> HttpResponse {
     crate::servers::toast_overlay::set_config(config.into_inner());
     HttpResponse::Ok().json(crate::servers::toast_overlay::get_config())
 }
 
 #[post("/api/toast/trigger")]
-async fn trigger_toast_endpoint(payload: web::Json<crate::servers::toast_overlay::ToastTriggerPayload>) -> HttpResponse {
+async fn trigger_toast_endpoint(
+    payload: web::Json<crate::servers::toast_overlay::ToastTriggerPayload>,
+) -> HttpResponse {
     crate::servers::toast_overlay::trigger_toast(payload.into_inner());
     HttpResponse::Ok().finish()
 }
@@ -640,7 +667,8 @@ async fn default(req: HttpRequest) -> HttpResponse {
 
     let candidates = [
         std::path::PathBuf::from("./daemon/web-content").join(path_part),
-        std::path::PathBuf::from("d:/iMA/Documents/GitHub/goxlr-utility/daemon/web-content").join(path_part),
+        std::path::PathBuf::from("d:/iMA/Documents/GitHub/goxlr-utility/daemon/web-content")
+            .join(path_part),
         std::path::PathBuf::from("./web-content").join(path_part),
     ];
     for local_path in &candidates {
