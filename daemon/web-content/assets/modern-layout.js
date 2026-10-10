@@ -1963,11 +1963,372 @@
     injectQuickGain();
   }
 
+  // Routing Visibility Preferences Management
+  const ROUTING_HIDDEN_INPUTS_KEY = 'goxlr_routing_hidden_inputs';
+  const ROUTING_HIDDEN_OUTPUTS_KEY = 'goxlr_routing_hidden_outputs';
+
+  function getRoutingVisibilitySettings() {
+    let hiddenInputs = [];
+    let hiddenOutputs = [];
+    try {
+      hiddenInputs = JSON.parse(localStorage.getItem(ROUTING_HIDDEN_INPUTS_KEY) || '[]');
+      hiddenOutputs = JSON.parse(localStorage.getItem(ROUTING_HIDDEN_OUTPUTS_KEY) || '[]');
+    } catch(e) {}
+    return { hiddenInputs, hiddenOutputs };
+  }
+
+  function saveRoutingVisibilitySettings(hiddenInputs, hiddenOutputs) {
+    try {
+      localStorage.setItem(ROUTING_HIDDEN_INPUTS_KEY, JSON.stringify(hiddenInputs));
+      localStorage.setItem(ROUTING_HIDDEN_OUTPUTS_KEY, JSON.stringify(hiddenOutputs));
+    } catch(e) {}
+  }
+
+  function applyRoutingVisibility(routingTable) {
+    if (!routingTable) routingTable = document.querySelector('table[data-v-3bfabf52]');
+    if (!routingTable) return;
+
+    const { hiddenInputs, hiddenOutputs } = getRoutingVisibilitySettings();
+
+    // 1. Join Top-Left Containers into a single unified cell with gear icon
+    const topRow = routingTable.querySelector('thead tr:first-child');
+    const subHeaderRow = routingTable.querySelector('thead tr.subHeader');
+
+    if (topRow && subHeaderRow) {
+      const cornerCell1 = topRow.children[0];
+      const cornerCell2 = subHeaderRow.children[0];
+
+      if (cornerCell1) {
+        cornerCell1.rowSpan = 2;
+        cornerCell1.colSpan = 2;
+        cornerCell1.classList.remove('hidden');
+        cornerCell1.classList.add('modern-routing-top-left-cell');
+
+        if (!cornerCell1.querySelector('.modern-routing-gear-btn')) {
+          cornerCell1.innerHTML = `
+            <div class="modern-routing-corner-inner">
+              <button class="modern-routing-gear-btn" id="modern-routing-gear-btn" title="Customize Routing Matrix" type="button">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+              </button>
+            </div>
+          `;
+          const gearBtn = cornerCell1.querySelector('#modern-routing-gear-btn');
+          if (gearBtn) {
+            gearBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              openRoutingCustomizeModal();
+            });
+          }
+        }
+      }
+
+      if (cornerCell2) {
+        cornerCell2.style.setProperty('display', 'none', 'important');
+      }
+    }
+
+    // 2. Filter Input Columns (Columns)
+    const subHeaderThs = subHeaderRow ? Array.from(subHeaderRow.children).filter(el => {
+      if (el === cornerCell1 || el === cornerCell2) return false;
+      if (el.classList.contains('rotated') || el.classList.contains('hidden')) return false;
+      const txt = el.textContent.trim();
+      return txt !== '';
+    }) : [];
+
+    let visibleColCount = 0;
+
+    subHeaderThs.forEach((th, colIdx) => {
+      const channelName = th.textContent.trim();
+      const isHidden = hiddenInputs.includes(channelName);
+      if (isHidden) {
+        th.style.setProperty('display', 'none', 'important');
+      } else {
+        th.style.removeProperty('display');
+        visibleColCount++;
+      }
+
+      // Hide corresponding matrix td in every tbody row
+      const tbodyRows = routingTable.querySelectorAll('tbody tr');
+      tbodyRows.forEach(tr => {
+        const tds = Array.from(tr.querySelectorAll('td'));
+        if (tds[colIdx]) {
+          if (isHidden) {
+            tds[colIdx].style.setProperty('display', 'none', 'important');
+          } else {
+            tds[colIdx].style.removeProperty('display');
+          }
+        }
+      });
+    });
+
+    // Find "Inputs" top header cell and update colspan
+    const inputsTopTh = topRow ? Array.from(topRow.children).find(c => c !== cornerCell1 && (c.textContent.toUpperCase().includes('INPUT') || c.hasAttribute('colspan'))) : null;
+    if (topRow) {
+      Array.from(topRow.children).forEach(c => {
+        if (c !== cornerCell1 && c !== inputsTopTh) {
+          c.style.setProperty('display', 'none', 'important');
+        }
+      });
+    }
+
+    if (inputsTopTh) {
+      inputsTopTh.colSpan = Math.max(1, visibleColCount);
+      if (visibleColCount === 0) {
+        inputsTopTh.style.setProperty('display', 'none', 'important');
+      } else {
+        inputsTopTh.style.removeProperty('display');
+      }
+    }
+
+    // 3. Filter Output Rows (Rows)
+    const tbodyRows = Array.from(routingTable.querySelectorAll('tbody tr'));
+    const visibleRows = [];
+
+    tbodyRows.forEach(tr => {
+      const rowHeader = tr.querySelector('th:not(.rotated)');
+      let rowName = '';
+      if (rowHeader) {
+        rowName = rowHeader.textContent.trim();
+      }
+      const isHidden = hiddenOutputs.includes(rowName);
+      if (isHidden) {
+        tr.style.setProperty('display', 'none', 'important');
+      } else {
+        tr.style.removeProperty('display');
+        visibleRows.push(tr);
+      }
+    });
+
+    // 4. Update vertical "Outputs" th.rotated header
+    let rotatedTh = routingTable.querySelector('th.rotated');
+    if (rotatedTh) {
+      if (visibleRows.length === 0) {
+        rotatedTh.style.setProperty('display', 'none', 'important');
+      } else {
+        rotatedTh.style.removeProperty('display');
+        rotatedTh.rowSpan = visibleRows.length;
+        const firstVisibleRow = visibleRows[0];
+        if (firstVisibleRow && rotatedTh.parentElement !== firstVisibleRow) {
+          firstVisibleRow.insertBefore(rotatedTh, firstVisibleRow.firstChild);
+        }
+      }
+    }
+  }
+
+  function openRoutingCustomizeModal() {
+    const routingTable = document.querySelector('table[data-v-3bfabf52]');
+    if (!routingTable) return;
+
+    // Extract current input channels from subHeader
+    const topRow = routingTable.querySelector('thead tr:first-child');
+    const subHeaderRow = routingTable.querySelector('thead tr.subHeader');
+    const cornerCell1 = topRow ? topRow.children[0] : null;
+    const cornerCell2 = subHeaderRow ? subHeaderRow.children[0] : null;
+
+    const inputThs = subHeaderRow ? Array.from(subHeaderRow.children).filter(el => {
+      if (el === cornerCell1 || el === cornerCell2) return false;
+      if (el.classList.contains('rotated') || el.classList.contains('hidden')) return false;
+      const txt = el.textContent.trim();
+      return txt !== '';
+    }) : [];
+    const inputChannels = inputThs.map(th => th.textContent.trim()).filter(Boolean);
+
+    // Extract current output channels from tbody rows
+    const tbodyRows = Array.from(routingTable.querySelectorAll('tbody tr'));
+    const outputChannels = [];
+    tbodyRows.forEach(tr => {
+      const rh = tr.querySelector('th:not(.rotated)');
+      if (rh) {
+        const name = rh.textContent.trim();
+        if (name && !outputChannels.includes(name)) {
+          outputChannels.push(name);
+        }
+      }
+    });
+
+    let { hiddenInputs, hiddenOutputs } = getRoutingVisibilitySettings();
+
+    // Create or locate Modal overlay
+    let modalOverlay = document.getElementById('modern-routing-customize-modal');
+    if (!modalOverlay) {
+      modalOverlay = document.createElement('div');
+      modalOverlay.id = 'modern-routing-customize-modal';
+      modalOverlay.className = 'modern-modal-overlay';
+      document.body.appendChild(modalOverlay);
+    }
+
+    const renderModalContent = () => {
+      modalOverlay.innerHTML = `
+        <div class="modern-modal-card mini-routing-modal-card">
+          <div class="modern-modal-header">
+            <div class="modern-modal-title-wrap">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+              <h3 class="modern-modal-title">CUSTOMIZE ROUTING MATRIX</h3>
+            </div>
+            <button class="modern-modal-close-btn" id="mini-routing-close-x" type="button">&times;</button>
+          </div>
+          <p class="mini-routing-hint">Click any column (input) or row (output) to toggle visibility in the routing matrix. Hidden items are greyed out.</p>
+
+          <div class="mini-routing-container">
+            <table class="mini-routing-grid">
+              <thead>
+                <tr>
+                  <th rowspan="2" class="mini-grid-corner-cell">
+                    <span class="mini-grid-corner-label">GRID</span>
+                  </th>
+                  <th colspan="${inputChannels.length}" class="mini-grid-top-title">INPUT CHANNELS</th>
+                </tr>
+                <tr class="mini-grid-subheader-row">
+                  ${inputChannels.map(inp => {
+                    const isHidden = hiddenInputs.includes(inp);
+                    return `
+                      <th>
+                        <button type="button" class="mini-grid-btn mini-grid-col-btn ${isHidden ? 'is-hidden' : 'is-visible'}" data-channel="${inp}">
+                          <span>${inp}</span>
+                        </button>
+                      </th>
+                    `;
+                  }).join('')}
+                </tr>
+              </thead>
+              <tbody>
+                ${outputChannels.map(outp => {
+                  const isOutHidden = hiddenOutputs.includes(outp);
+                  return `
+                    <tr>
+                      <th>
+                        <button type="button" class="mini-grid-btn mini-grid-row-btn ${isOutHidden ? 'is-hidden' : 'is-visible'}" data-channel="${outp}">
+                          <span>${outp}</span>
+                        </button>
+                      </th>
+                      ${inputChannels.map(inp => {
+                        const isInpHidden = hiddenInputs.includes(inp);
+                        const isCellHidden = isInpHidden || isOutHidden;
+                        return `
+                          <td>
+                            <div class="mini-grid-cell ${isCellHidden ? 'is-hidden' : 'is-visible'}" data-input="${inp}" data-output="${outp}"></div>
+                          </td>
+                        `;
+                      }).join('')}
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="modern-modal-footer">
+            <button type="button" class="modern-btn-secondary" id="mini-routing-show-all">Show All Channels</button>
+            <button type="button" class="modern-btn-primary" id="mini-routing-done">Done</button>
+          </div>
+        </div>
+      `;
+
+      // Wire up event listeners inside modal
+      const colBtns = modalOverlay.querySelectorAll('.mini-grid-col-btn');
+      colBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const channel = btn.getAttribute('data-channel');
+          if (hiddenInputs.includes(channel)) {
+            hiddenInputs = hiddenInputs.filter(x => x !== channel);
+          } else {
+            hiddenInputs.push(channel);
+          }
+          saveRoutingVisibilitySettings(hiddenInputs, hiddenOutputs);
+          applyRoutingVisibility(routingTable);
+          renderModalContent();
+        });
+      });
+
+      const gridCells = modalOverlay.querySelectorAll('.mini-grid-cell');
+      gridCells.forEach(cell => {
+        cell.addEventListener('click', (e) => {
+          e.preventDefault();
+          const inp = cell.getAttribute('data-input');
+          const outp = cell.getAttribute('data-output');
+          const isInpHidden = hiddenInputs.includes(inp);
+          const isOutHidden = hiddenOutputs.includes(outp);
+
+          if (isInpHidden && isOutHidden) {
+            hiddenInputs = hiddenInputs.filter(x => x !== inp);
+            hiddenOutputs = hiddenOutputs.filter(x => x !== outp);
+          } else if (isInpHidden) {
+            hiddenInputs = hiddenInputs.filter(x => x !== inp);
+          } else if (isOutHidden) {
+            hiddenOutputs = hiddenOutputs.filter(x => x !== outp);
+          } else {
+            hiddenInputs.push(inp);
+          }
+          saveRoutingVisibilitySettings(hiddenInputs, hiddenOutputs);
+          applyRoutingVisibility(routingTable);
+          renderModalContent();
+        });
+      });
+
+      const rowBtns = modalOverlay.querySelectorAll('.mini-grid-row-btn');
+      rowBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const channel = btn.getAttribute('data-channel');
+          if (hiddenOutputs.includes(channel)) {
+            hiddenOutputs = hiddenOutputs.filter(x => x !== channel);
+          } else {
+            hiddenOutputs.push(channel);
+          }
+          saveRoutingVisibilitySettings(hiddenInputs, hiddenOutputs);
+          applyRoutingVisibility(routingTable);
+          renderModalContent();
+        });
+      });
+
+      const showAllBtn = modalOverlay.querySelector('#mini-routing-show-all');
+      if (showAllBtn) {
+        showAllBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          hiddenInputs = [];
+          hiddenOutputs = [];
+          saveRoutingVisibilitySettings(hiddenInputs, hiddenOutputs);
+          applyRoutingVisibility(routingTable);
+          renderModalContent();
+        });
+      }
+
+      const closeX = modalOverlay.querySelector('#mini-routing-close-x');
+      const doneBtn = modalOverlay.querySelector('#mini-routing-done');
+      const closeModal = () => {
+        modalOverlay.style.display = 'none';
+      };
+      if (closeX) closeX.addEventListener('click', closeModal);
+      if (doneBtn) doneBtn.addEventListener('click', closeModal);
+    };
+
+    renderModalContent();
+    modalOverlay.style.display = 'flex';
+
+    modalOverlay.onclick = (e) => {
+      if (e.target === modalOverlay) {
+        modalOverlay.style.display = 'none';
+      }
+    };
+  }
+
   // Routing Table Precision Crosshair & Matrix Polish
   function setupRoutingTableObserver() {
     const attachToTable = () => {
       const routingTable = document.querySelector('table[data-v-3bfabf52]');
-      if (!routingTable || routingTable._modernEnhanced) return;
+      if (!routingTable) return;
+
+      applyRoutingVisibility(routingTable);
+
+      if (routingTable._modernEnhanced) return;
       routingTable._modernEnhanced = true;
 
       routingTable.addEventListener('mouseover', (e) => {
