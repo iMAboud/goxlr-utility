@@ -2190,7 +2190,7 @@ div.version,
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
 }
 
-/* Merged Top-Left Routing Cell & Gear Icon */
+/* Merged Top-Left Routing Cell */
 thead th.modern-routing-top-left-cell[data-v-3bfabf52] {
   background: var(--bg-surface) !important;
   border: 1px solid var(--border-subtle) !important;
@@ -2211,126 +2211,74 @@ thead th.modern-routing-top-left-cell[data-v-3bfabf52] {
   padding: 2px;
 }
 
-.modern-routing-gear-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted, #94a3b8);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px !important;
-  height: 38px !important;
-  padding: 0 !important;
-  border-radius: 50% !important;
-  transition: all 0.2s ease;
-  margin: auto !important;
-}
-
-.modern-routing-gear-btn:hover {
-  color: #ffffff;
-  background: rgba(139, 92, 246, 0.25) !important;
-  box-shadow: 0 0 10px rgba(139, 92, 246, 0.35) !important;
-}
-
-.modern-modal-overlay {
+/* Right-Click Context Menu for Routing Matrix */
+.modern-routing-context-menu {
   position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  background: rgba(0, 0, 0, 0.78) !important;
-  backdrop-filter: blur(10px) !important;
-  display: none;
-  align-items: center !important;
-  justify-content: center !important;
   z-index: 999999 !important;
+  background: var(--bg-card, #141224) !important;
+  border: 1px solid var(--border-bright, rgba(167, 139, 250, 0.35)) !important;
+  border-radius: var(--radius-md, 10px) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(139, 92, 246, 0.25) !important;
+  padding: 6px !important;
+  min-width: 200px !important;
+  display: none;
+  flex-direction: column !important;
+  backdrop-filter: blur(12px) !important;
 }
 
-.modern-routing-gear-btn svg {
-  transition: transform 0.3s ease;
+.modern-routing-context-menu.open {
+  display: flex !important;
+  animation: contextMenuPop 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-.modern-routing-gear-btn:hover svg {
-  transform: rotate(45deg);
+@keyframes contextMenuPop {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
 
-/* Routing Customization Modal & Channel Section Styles */
-.mini-routing-modal-card {
-  background: var(--bg-card, #131024) !important;
-  border: 1px solid var(--border-subtle, rgba(139, 92, 246, 0.3)) !important;
-  border-radius: var(--radius-lg, 12px) !important;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(124, 58, 237, 0.15) !important;
-  padding: 20px !important;
-  max-width: 580px !important;
-  width: 92% !important;
-  color: #f8fafc !important;
+.modern-menu-header {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.8px !important;
+  color: var(--accent-purple-light, #a78bfa) !important;
+  padding: 6px 10px 4px 10px !important;
+  text-transform: uppercase !important;
 }
 
-.mini-routing-hint {
-  font-size: 12px;
-  color: #94a3b8;
-  margin: 6px 0 16px 0;
-  line-height: 1.4;
+.modern-menu-divider {
+  height: 1px !important;
+  background: var(--border-subtle, rgba(139, 92, 246, 0.16)) !important;
+  margin: 4px 0 !important;
 }
 
-.mini-routing-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-bottom: 20px;
+.modern-menu-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 6px 10px !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: var(--text-main, #f8fafc) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  user-select: none !important;
 }
 
-.mini-routing-group {
-  background: var(--bg-surface, #18152e);
-  border: 1px solid var(--border-subtle, rgba(139, 92, 246, 0.2));
-  border-radius: var(--radius-md, 8px);
-  padding: 12px 14px;
+.modern-menu-item:hover {
+  background: rgba(139, 92, 246, 0.2) !important;
+  color: #ffffff !important;
 }
 
-.mini-routing-group-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--accent-purple-light, #c084fc);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  margin-bottom: 10px;
+.modern-menu-check {
+  width: 14px !important;
+  font-weight: bold !important;
+  color: var(--accent-purple-light, #a78bfa) !important;
+  text-align: center !important;
 }
 
-.mini-routing-buttons-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.mini-grid-btn {
-  background: var(--bg-card, #100e21);
-  border: 1px solid var(--border-subtle, rgba(139, 92, 246, 0.25));
-  border-radius: var(--radius-sm, 6px);
-  color: #f1f5f9;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 6px 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  user-select: none;
-  white-space: nowrap;
-}
-
-.mini-grid-btn:hover {
-  border-color: var(--accent-purple, #8b5cf6);
-  background: rgba(139, 92, 246, 0.25);
-  color: #ffffff;
-}
-
-/* Hidden / Greyed Out State */
-.mini-grid-btn.is-hidden {
-  opacity: 0.35 !important;
-  background: #0d0b18 !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
-  color: #64748b !important;
+.modern-menu-label.is-dim {
+  color: var(--text-dim, #5c5878) !important;
   text-decoration: line-through !important;
 }
 

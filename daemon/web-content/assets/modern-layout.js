@@ -107,15 +107,6 @@
       });
     }
 
-    // Document-level event delegation for routing gear button
-    document.addEventListener('click', (e) => {
-      const gearBtn = e.target.closest('#modern-routing-gear-btn, .modern-routing-gear-btn');
-      if (gearBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        openRoutingCustomizeModal();
-      }
-    }, true);
 
     // 5. Setup Routing Table Crosshair & Observer
     setupRoutingTableObserver();
@@ -1994,13 +1985,16 @@
     } catch(e) {}
   }
 
+  const ALL_INPUT_CHANNELS = ['Mic', 'Line In', 'Console', 'System', 'Game', 'Chat', 'Sample', 'Music'];
+  const ALL_OUTPUT_CHANNELS = ['Headphones', 'Broadcast Mix', 'Line Out', 'Chat Mic', 'Sampler'];
+
   function applyRoutingVisibility(routingTable) {
     if (!routingTable) routingTable = document.querySelector('table[data-v-3bfabf52]');
     if (!routingTable) return;
 
     const { hiddenInputs, hiddenOutputs } = getRoutingVisibilitySettings();
 
-    // 1. Join Top-Left Containers into a single unified cell with gear icon
+    // 1. Join Top-Left Containers into a single unified cell
     const topRow = routingTable.querySelector('thead tr:first-child');
     const subHeaderRow = routingTable.querySelector('thead tr.subHeader');
 
@@ -2013,27 +2007,7 @@
         cornerCell1.colSpan = 2;
         cornerCell1.classList.remove('hidden');
         cornerCell1.classList.add('modern-routing-top-left-cell');
-
-        if (!cornerCell1.querySelector('.modern-routing-gear-btn')) {
-          cornerCell1.innerHTML = `
-            <div class="modern-routing-corner-inner">
-              <button class="modern-routing-gear-btn" id="modern-routing-gear-btn" title="Customize Routing Matrix" type="button">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                </svg>
-              </button>
-            </div>
-          `;
-          const gearBtn = cornerCell1.querySelector('#modern-routing-gear-btn');
-          if (gearBtn) {
-            gearBtn.addEventListener('click', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openRoutingCustomizeModal();
-            });
-          }
-        }
+        cornerCell1.innerHTML = `<div class="modern-routing-corner-inner"></div>`;
       }
 
       if (cornerCell2) {
@@ -2043,7 +2017,7 @@
 
     // 2. Filter Input Columns (Columns)
     const subHeaderThs = subHeaderRow ? Array.from(subHeaderRow.children).filter(el => {
-      if (el === cornerCell1 || el === cornerCell2) return false;
+      if (el === topRow?.children[0] || el === subHeaderRow?.children[0]) return false;
       if (el.classList.contains('rotated') || el.classList.contains('hidden')) return false;
       const txt = el.textContent.trim();
       return txt !== '';
@@ -2054,6 +2028,7 @@
     subHeaderThs.forEach((th, colIdx) => {
       const channelName = th.textContent.trim();
       const isHidden = hiddenInputs.includes(channelName);
+
       if (isHidden) {
         th.style.setProperty('display', 'none', 'important');
       } else {
@@ -2076,10 +2051,10 @@
     });
 
     // Find "Inputs" top header cell and update colspan
-    const inputsTopTh = topRow ? Array.from(topRow.children).find(c => c !== cornerCell1 && (c.textContent.toUpperCase().includes('INPUT') || c.hasAttribute('colspan'))) : null;
+    const inputsTopTh = topRow ? Array.from(topRow.children).find(c => c !== topRow.children[0] && (c.textContent.toUpperCase().includes('INPUT') || c.hasAttribute('colspan'))) : null;
     if (topRow) {
       Array.from(topRow.children).forEach(c => {
-        if (c !== cornerCell1 && c !== inputsTopTh) {
+        if (c !== topRow.children[0] && c !== inputsTopTh) {
           c.style.setProperty('display', 'none', 'important');
         }
       });
@@ -2129,167 +2104,188 @@
     }
   }
 
-  function openRoutingCustomizeModal() {
-    const routingTable = document.querySelector('table[data-v-3bfabf52]');
+  function setupRoutingContextMenu() {
+    const container = document.querySelector('.modern-top-routing') || document.body;
 
-    // Extract current input channels from subHeader or fallback to defaults
-    const topRow = routingTable ? routingTable.querySelector('thead tr:first-child') : null;
-    const subHeaderRow = routingTable ? routingTable.querySelector('thead tr.subHeader') : null;
-    const cornerCell1 = topRow ? topRow.children[0] : null;
-    const cornerCell2 = subHeaderRow ? subHeaderRow.children[0] : null;
+    container.addEventListener('contextmenu', (e) => {
+      const routingTable = document.querySelector('table[data-v-3bfabf52]');
+      if (!routingTable || !routingTable.contains(e.target)) return;
 
-    const inputThs = subHeaderRow ? Array.from(subHeaderRow.children).filter(el => {
-      if (el === cornerCell1 || el === cornerCell2) return false;
-      if (el.classList.contains('rotated') || el.classList.contains('hidden')) return false;
-      const txt = el.textContent.trim();
-      return txt !== '';
-    }) : [];
-    let inputChannels = inputThs.map(th => th.textContent.trim()).filter(Boolean);
-    if (inputChannels.length === 0) {
-      inputChannels = ['Mic', 'Line In', 'Console', 'System', 'Game', 'Chat', 'Sample', 'Music'];
-    }
+      e.preventDefault();
+      e.stopPropagation();
 
-    // Extract current output channels from tbody rows or fallback to defaults
-    const tbodyRows = routingTable ? Array.from(routingTable.querySelectorAll('tbody tr')) : [];
-    let outputChannels = [];
-    tbodyRows.forEach(tr => {
-      const rh = tr.querySelector('th:not(.rotated)');
-      if (rh) {
-        const name = rh.textContent.trim();
-        if (name && !outputChannels.includes(name)) {
-          outputChannels.push(name);
+      // Determine target channel if user right-clicked a specific header or cell
+      let targetInputChannel = null;
+      let targetOutputChannel = null;
+
+      const subHeader = routingTable.querySelector('thead tr.subHeader');
+      const subHeaderThs = subHeader ? Array.from(subHeader.querySelectorAll('th:not(.hidden)')) : [];
+
+      const clickedTh = e.target.closest('th');
+      const clickedTd = e.target.closest('td');
+
+      if (clickedTh) {
+        if (subHeader && subHeader.contains(clickedTh)) {
+          targetInputChannel = clickedTh.textContent.trim();
+        } else {
+          const rowHeader = clickedTh.closest('tr')?.querySelector('th:not(.rotated)');
+          if (rowHeader) {
+            targetOutputChannel = rowHeader.textContent.trim();
+          }
+        }
+      } else if (clickedTd) {
+        const tr = clickedTd.parentElement;
+        const allTdsInRow = Array.from(tr.querySelectorAll('td'));
+        const colIdx = allTdsInRow.indexOf(clickedTd);
+        if (colIdx >= 0 && subHeaderThs[colIdx]) {
+          targetInputChannel = subHeaderThs[colIdx].textContent.trim();
+        }
+        const rowHeader = tr.querySelector('th:not(.rotated)');
+        if (rowHeader) {
+          targetOutputChannel = rowHeader.textContent.trim();
         }
       }
-    });
-    if (outputChannels.length === 0) {
-      outputChannels = ['Headphones', 'Broadcast Mix', 'Line Out', 'Chat Mic', 'Sampler'];
+
+      openRoutingContextMenu(e.clientX, e.clientY, targetInputChannel, targetOutputChannel, routingTable);
+    }, true);
+  }
+
+  function openRoutingContextMenu(x, y, targetInput, targetOutput, routingTable) {
+    let menu = document.getElementById('modern-routing-context-menu');
+    if (!menu) {
+      menu = document.createElement('div');
+      menu.id = 'modern-routing-context-menu';
+      menu.className = 'modern-routing-context-menu';
+      document.body.appendChild(menu);
     }
 
-    let { hiddenInputs, hiddenOutputs } = getRoutingVisibilitySettings();
+    const { hiddenInputs, hiddenOutputs } = getRoutingVisibilitySettings();
 
-    // Create or locate Modal overlay
-    let modalOverlay = document.getElementById('modern-routing-customize-modal');
-    if (!modalOverlay) {
-      modalOverlay = document.createElement('div');
-      modalOverlay.id = 'modern-routing-customize-modal';
-      modalOverlay.className = 'modern-modal-overlay';
-      document.body.appendChild(modalOverlay);
-    }
-
-    const renderModalContent = () => {
-      modalOverlay.innerHTML = `
-        <div class="modern-modal-card mini-routing-modal-card">
-          <div class="modern-modal-header">
-            <div class="modern-modal-title-wrap">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-              </svg>
-              <h3 class="modern-modal-title">CUSTOMIZE ROUTING MATRIX</h3>
-            </div>
-            <button class="modern-modal-close-btn" id="mini-routing-close-x" type="button">&times;</button>
-          </div>
-          <p class="mini-routing-hint">Click any input channel title (top) or output channel title (left) to toggle visibility in the routing matrix. Hidden channels are greyed out.</p>
-
-          <div class="mini-routing-sections">
-            <div class="mini-routing-group">
-              <div class="mini-routing-group-title">INPUT CHANNELS (COLUMNS)</div>
-              <div class="mini-routing-buttons-row">
-                ${inputChannels.map(inp => {
-                  const isHidden = hiddenInputs.includes(inp);
-                  return `
-                    <button type="button" class="mini-grid-btn mini-grid-col-btn ${isHidden ? 'is-hidden' : 'is-visible'}" data-channel="${inp}">
-                      <span>${inp}</span>
-                    </button>
-                  `;
-                }).join('')}
-              </div>
-            </div>
-
-            <div class="mini-routing-group">
-              <div class="mini-routing-group-title">OUTPUT CHANNELS (ROWS)</div>
-              <div class="mini-routing-buttons-row">
-                ${outputChannels.map(outp => {
-                  const isOutHidden = hiddenOutputs.includes(outp);
-                  return `
-                    <button type="button" class="mini-grid-btn mini-grid-row-btn ${isOutHidden ? 'is-hidden' : 'is-visible'}" data-channel="${outp}">
-                      <span>${outp}</span>
-                    </button>
-                  `;
-                }).join('')}
-              </div>
-            </div>
-          </div>
-
-          <div class="modern-modal-footer">
-            <button type="button" class="modern-btn-secondary" id="mini-routing-show-all">Show All Channels</button>
-            <button type="button" class="modern-btn-primary" id="mini-routing-done">Done</button>
-          </div>
+    let topSpecificActionHtml = '';
+    if (targetInput && targetInput !== '') {
+      const isHidden = hiddenInputs.includes(targetInput);
+      topSpecificActionHtml = `
+        <div class="modern-menu-item action-hide-specific" data-type="input" data-channel="${targetInput}">
+          <span class="modern-menu-label">${isHidden ? 'Show' : 'Hide'} '${targetInput}' Column</span>
         </div>
+        <div class="modern-menu-divider"></div>
       `;
+    } else if (targetOutput && targetOutput !== '') {
+      const isHidden = hiddenOutputs.includes(targetOutput);
+      topSpecificActionHtml = `
+        <div class="modern-menu-item action-hide-specific" data-type="output" data-channel="${targetOutput}">
+          <span class="modern-menu-label">${isHidden ? 'Show' : 'Hide'} '${targetOutput}' Row</span>
+        </div>
+        <div class="modern-menu-divider"></div>
+      `;
+    }
 
-      // Wire up event listeners inside modal
-      const colBtns = modalOverlay.querySelectorAll('.mini-grid-col-btn');
-      colBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          const channel = btn.getAttribute('data-channel');
-          if (hiddenInputs.includes(channel)) {
-            hiddenInputs = hiddenInputs.filter(x => x !== channel);
+    menu.innerHTML = `
+      ${topSpecificActionHtml}
+      <div class="modern-menu-header">INPUT CHANNELS</div>
+      ${ALL_INPUT_CHANNELS.map(inp => {
+        const isVisible = !hiddenInputs.includes(inp);
+        return `
+          <div class="modern-menu-item toggle-channel" data-type="input" data-channel="${inp}">
+            <span class="modern-menu-check">${isVisible ? '✓' : ''}</span>
+            <span class="modern-menu-label ${!isVisible ? 'is-dim' : ''}">${inp}</span>
+          </div>
+        `;
+      }).join('')}
+      <div class="modern-menu-divider"></div>
+      <div class="modern-menu-header">OUTPUT CHANNELS</div>
+      ${ALL_OUTPUT_CHANNELS.map(outp => {
+        const isVisible = !hiddenOutputs.includes(outp);
+        return `
+          <div class="modern-menu-item toggle-channel" data-type="output" data-channel="${outp}">
+            <span class="modern-menu-check">${isVisible ? '✓' : ''}</span>
+            <span class="modern-menu-label ${!isVisible ? 'is-dim' : ''}">${outp}</span>
+          </div>
+        `;
+      }).join('')}
+      <div class="modern-menu-divider"></div>
+      <div class="modern-menu-item action-show-all">
+        <span class="modern-menu-check"></span>
+        <span class="modern-menu-label">Show All Channels</span>
+      </div>
+    `;
+
+    // Position menu comfortably within viewport
+    const menuWidth = 210;
+    const menuHeight = 380;
+    let posX = Math.min(x, window.innerWidth - menuWidth - 10);
+    let posY = Math.min(y, window.innerHeight - menuHeight - 10);
+    if (posX < 10) posX = 10;
+    if (posY < 10) posY = 10;
+
+    menu.style.left = posX + 'px';
+    menu.style.top = posY + 'px';
+    menu.classList.add('open');
+
+    // Wire menu click actions
+    menu.querySelectorAll('.toggle-channel, .action-hide-specific').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const type = item.getAttribute('data-type');
+        const channel = item.getAttribute('data-channel');
+        let { hiddenInputs: curInps, hiddenOutputs: curOuts } = getRoutingVisibilitySettings();
+
+        if (type === 'input') {
+          if (curInps.includes(channel)) {
+            curInps = curInps.filter(x => x !== channel);
           } else {
-            hiddenInputs.push(channel);
+            curInps.push(channel);
           }
-          saveRoutingVisibilitySettings(hiddenInputs, hiddenOutputs);
-          applyRoutingVisibility(routingTable);
-          renderModalContent();
-        });
-      });
-
-      const rowBtns = modalOverlay.querySelectorAll('.mini-grid-row-btn');
-      rowBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          const channel = btn.getAttribute('data-channel');
-          if (hiddenOutputs.includes(channel)) {
-            hiddenOutputs = hiddenOutputs.filter(x => x !== channel);
+        } else if (type === 'output') {
+          if (curOuts.includes(channel)) {
+            curOuts = curOuts.filter(x => x !== channel);
           } else {
-            hiddenOutputs.push(channel);
+            curOuts.push(channel);
           }
-          saveRoutingVisibilitySettings(hiddenInputs, hiddenOutputs);
-          applyRoutingVisibility(routingTable);
-          renderModalContent();
-        });
-      });
+        }
 
-      const showAllBtn = modalOverlay.querySelector('#mini-routing-show-all');
-      if (showAllBtn) {
-        showAllBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          hiddenInputs = [];
-          hiddenOutputs = [];
-          saveRoutingVisibilitySettings(hiddenInputs, hiddenOutputs);
-          applyRoutingVisibility(routingTable);
-          renderModalContent();
-        });
+        saveRoutingVisibilitySettings(curInps, curOuts);
+        applyRoutingVisibility(routingTable);
+        openRoutingContextMenu(x, y, targetInput, targetOutput, routingTable);
+      });
+    });
+
+    const showAllItem = menu.querySelector('.action-show-all');
+    if (showAllItem) {
+      showAllItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        saveRoutingVisibilitySettings([], []);
+        applyRoutingVisibility(routingTable);
+        closeRoutingContextMenu();
+      });
+    }
+
+    const closeHandler = (e) => {
+      if (menu && !menu.contains(e.target)) {
+        closeRoutingContextMenu();
+        document.removeEventListener('click', closeHandler);
+        document.removeEventListener('keydown', keyHandler);
       }
-
-      const closeX = modalOverlay.querySelector('#mini-routing-close-x');
-      const doneBtn = modalOverlay.querySelector('#mini-routing-done');
-      const closeModal = () => {
-        modalOverlay.style.display = 'none';
-      };
-      if (closeX) closeX.addEventListener('click', closeModal);
-      if (doneBtn) doneBtn.addEventListener('click', closeModal);
+    };
+    const keyHandler = (e) => {
+      if (e.key === 'Escape') {
+        closeRoutingContextMenu();
+        document.removeEventListener('click', closeHandler);
+        document.removeEventListener('keydown', keyHandler);
+      }
     };
 
-    renderModalContent();
-    modalOverlay.style.display = 'flex';
+    setTimeout(() => {
+      document.addEventListener('click', closeHandler);
+      document.addEventListener('keydown', keyHandler);
+    }, 10);
+  }
 
-    modalOverlay.onclick = (e) => {
-      if (e.target === modalOverlay) {
-        modalOverlay.style.display = 'none';
-      }
-    };
+  function closeRoutingContextMenu() {
+    const menu = document.getElementById('modern-routing-context-menu');
+    if (menu) {
+      menu.classList.remove('open');
+    }
   }
 
   // Routing Table Precision Crosshair & Matrix Polish
@@ -2302,6 +2298,8 @@
 
       if (routingTable._modernEnhanced) return;
       routingTable._modernEnhanced = true;
+
+      setupRoutingContextMenu();
 
       routingTable.addEventListener('mouseover', (e) => {
         const cell = e.target.closest('td[data-v-a1a932ca], div[data-v-a1a932ca]');
