@@ -107,6 +107,16 @@
       });
     }
 
+    // Document-level event delegation for routing gear button
+    document.addEventListener('click', (e) => {
+      const gearBtn = e.target.closest('#modern-routing-gear-btn, .modern-routing-gear-btn');
+      if (gearBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        openRoutingCustomizeModal();
+      }
+    }, true);
+
     // 5. Setup Routing Table Crosshair & Observer
     setupRoutingTableObserver();
 
@@ -2121,11 +2131,10 @@
 
   function openRoutingCustomizeModal() {
     const routingTable = document.querySelector('table[data-v-3bfabf52]');
-    if (!routingTable) return;
 
-    // Extract current input channels from subHeader
-    const topRow = routingTable.querySelector('thead tr:first-child');
-    const subHeaderRow = routingTable.querySelector('thead tr.subHeader');
+    // Extract current input channels from subHeader or fallback to defaults
+    const topRow = routingTable ? routingTable.querySelector('thead tr:first-child') : null;
+    const subHeaderRow = routingTable ? routingTable.querySelector('thead tr.subHeader') : null;
     const cornerCell1 = topRow ? topRow.children[0] : null;
     const cornerCell2 = subHeaderRow ? subHeaderRow.children[0] : null;
 
@@ -2135,11 +2144,14 @@
       const txt = el.textContent.trim();
       return txt !== '';
     }) : [];
-    const inputChannels = inputThs.map(th => th.textContent.trim()).filter(Boolean);
+    let inputChannels = inputThs.map(th => th.textContent.trim()).filter(Boolean);
+    if (inputChannels.length === 0) {
+      inputChannels = ['Mic', 'Line In', 'Console', 'System', 'Game', 'Chat', 'Sample', 'Music'];
+    }
 
-    // Extract current output channels from tbody rows
-    const tbodyRows = Array.from(routingTable.querySelectorAll('tbody tr'));
-    const outputChannels = [];
+    // Extract current output channels from tbody rows or fallback to defaults
+    const tbodyRows = routingTable ? Array.from(routingTable.querySelectorAll('tbody tr')) : [];
+    let outputChannels = [];
     tbodyRows.forEach(tr => {
       const rh = tr.querySelector('th:not(.rotated)');
       if (rh) {
@@ -2149,6 +2161,9 @@
         }
       }
     });
+    if (outputChannels.length === 0) {
+      outputChannels = ['Headphones', 'Broadcast Mix', 'Line Out', 'Chat Mic', 'Sampler'];
+    }
 
     let { hiddenInputs, hiddenOutputs } = getRoutingVisibilitySettings();
 
