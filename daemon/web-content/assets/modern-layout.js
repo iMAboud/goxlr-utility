@@ -2189,54 +2189,36 @@
             </div>
             <button class="modern-modal-close-btn" id="mini-routing-close-x" type="button">&times;</button>
           </div>
-          <p class="mini-routing-hint">Click any column (input) or row (output) to toggle visibility in the routing matrix. Hidden items are greyed out.</p>
+          <p class="mini-routing-hint">Click any input channel title (top) or output channel title (left) to toggle visibility in the routing matrix. Hidden channels are greyed out.</p>
 
-          <div class="mini-routing-container">
-            <table class="mini-routing-grid">
-              <thead>
-                <tr>
-                  <th rowspan="2" class="mini-grid-corner-cell">
-                    <span class="mini-grid-corner-label">GRID</span>
-                  </th>
-                  <th colspan="${inputChannels.length}" class="mini-grid-top-title">INPUT CHANNELS</th>
-                </tr>
-                <tr class="mini-grid-subheader-row">
-                  ${inputChannels.map(inp => {
-                    const isHidden = hiddenInputs.includes(inp);
-                    return `
-                      <th>
-                        <button type="button" class="mini-grid-btn mini-grid-col-btn ${isHidden ? 'is-hidden' : 'is-visible'}" data-channel="${inp}">
-                          <span>${inp}</span>
-                        </button>
-                      </th>
-                    `;
-                  }).join('')}
-                </tr>
-              </thead>
-              <tbody>
+          <div class="mini-routing-sections">
+            <div class="mini-routing-group">
+              <div class="mini-routing-group-title">INPUT CHANNELS (COLUMNS)</div>
+              <div class="mini-routing-buttons-row">
+                ${inputChannels.map(inp => {
+                  const isHidden = hiddenInputs.includes(inp);
+                  return `
+                    <button type="button" class="mini-grid-btn mini-grid-col-btn ${isHidden ? 'is-hidden' : 'is-visible'}" data-channel="${inp}">
+                      <span>${inp}</span>
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <div class="mini-routing-group">
+              <div class="mini-routing-group-title">OUTPUT CHANNELS (ROWS)</div>
+              <div class="mini-routing-buttons-row">
                 ${outputChannels.map(outp => {
                   const isOutHidden = hiddenOutputs.includes(outp);
                   return `
-                    <tr>
-                      <th>
-                        <button type="button" class="mini-grid-btn mini-grid-row-btn ${isOutHidden ? 'is-hidden' : 'is-visible'}" data-channel="${outp}">
-                          <span>${outp}</span>
-                        </button>
-                      </th>
-                      ${inputChannels.map(inp => {
-                        const isInpHidden = hiddenInputs.includes(inp);
-                        const isCellHidden = isInpHidden || isOutHidden;
-                        return `
-                          <td>
-                            <div class="mini-grid-cell ${isCellHidden ? 'is-hidden' : 'is-visible'}" data-input="${inp}" data-output="${outp}"></div>
-                          </td>
-                        `;
-                      }).join('')}
-                    </tr>
+                    <button type="button" class="mini-grid-btn mini-grid-row-btn ${isOutHidden ? 'is-hidden' : 'is-visible'}" data-channel="${outp}">
+                      <span>${outp}</span>
+                    </button>
                   `;
                 }).join('')}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
 
           <div class="modern-modal-footer">
@@ -2256,31 +2238,6 @@
             hiddenInputs = hiddenInputs.filter(x => x !== channel);
           } else {
             hiddenInputs.push(channel);
-          }
-          saveRoutingVisibilitySettings(hiddenInputs, hiddenOutputs);
-          applyRoutingVisibility(routingTable);
-          renderModalContent();
-        });
-      });
-
-      const gridCells = modalOverlay.querySelectorAll('.mini-grid-cell');
-      gridCells.forEach(cell => {
-        cell.addEventListener('click', (e) => {
-          e.preventDefault();
-          const inp = cell.getAttribute('data-input');
-          const outp = cell.getAttribute('data-output');
-          const isInpHidden = hiddenInputs.includes(inp);
-          const isOutHidden = hiddenOutputs.includes(outp);
-
-          if (isInpHidden && isOutHidden) {
-            hiddenInputs = hiddenInputs.filter(x => x !== inp);
-            hiddenOutputs = hiddenOutputs.filter(x => x !== outp);
-          } else if (isInpHidden) {
-            hiddenInputs = hiddenInputs.filter(x => x !== inp);
-          } else if (isOutHidden) {
-            hiddenOutputs = hiddenOutputs.filter(x => x !== outp);
-          } else {
-            hiddenInputs.push(inp);
           }
           saveRoutingVisibilitySettings(hiddenInputs, hiddenOutputs);
           applyRoutingVisibility(routingTable);

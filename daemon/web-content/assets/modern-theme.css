@@ -2257,14 +2257,14 @@ thead th.modern-routing-top-left-cell[data-v-3bfabf52] {
   transform: rotate(45deg);
 }
 
-/* Routing Customization Modal & Mini Grid Styles */
+/* Routing Customization Modal & Channel Section Styles */
 .mini-routing-modal-card {
   background: var(--bg-card, #131024) !important;
   border: 1px solid var(--border-subtle, rgba(139, 92, 246, 0.3)) !important;
   border-radius: var(--radius-lg, 12px) !important;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(124, 58, 237, 0.15) !important;
   padding: 20px !important;
-  max-width: 640px !important;
+  max-width: 580px !important;
   width: 92% !important;
   color: #f8fafc !important;
 }
@@ -2276,60 +2276,47 @@ thead th.modern-routing-top-left-cell[data-v-3bfabf52] {
   line-height: 1.4;
 }
 
-.mini-routing-container {
-  overflow-x: auto;
-  max-width: 100%;
-  padding-bottom: 8px;
+.mini-routing-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
-.mini-routing-grid {
-  border-collapse: separate !important;
-  border-spacing: 4px !important;
-  margin: 0 auto !important;
-  width: auto !important;
+.mini-routing-group {
+  background: var(--bg-surface, #18152e);
+  border: 1px solid var(--border-subtle, rgba(139, 92, 246, 0.2));
+  border-radius: var(--radius-md, 8px);
+  padding: 12px 14px;
 }
 
-.mini-grid-corner-cell {
-  background: var(--bg-surface, #1e1b38) !important;
-  border: 1px solid var(--border-subtle, rgba(139, 92, 246, 0.25)) !important;
-  border-radius: var(--radius-sm, 6px) !important;
-  text-align: center !important;
-  vertical-align: middle !important;
-  padding: 6px !important;
-}
-
-.mini-grid-corner-label {
-  font-size: 10px;
+.mini-routing-group-title {
+  font-size: 11px;
   font-weight: 700;
   color: var(--accent-purple-light, #c084fc);
   letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
 }
 
-.mini-grid-top-title {
-  background: var(--bg-surface, #1e1b38) !important;
-  border: 1px solid var(--border-subtle, rgba(139, 92, 246, 0.25)) !important;
-  border-radius: var(--radius-sm, 6px) !important;
-  color: var(--accent-purple-light, #c084fc) !important;
-  font-size: 10px !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.5px !important;
-  padding: 4px 8px !important;
-  text-align: center !important;
+.mini-routing-buttons-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .mini-grid-btn {
-  background: var(--bg-surface, #1e1b38);
+  background: var(--bg-card, #100e21);
   border: 1px solid var(--border-subtle, rgba(139, 92, 246, 0.25));
   border-radius: var(--radius-sm, 6px);
-  color: #e2e8f0;
-  font-size: 10px;
+  color: #f1f5f9;
+  font-size: 11px;
   font-weight: 600;
-  padding: 4px 8px;
+  padding: 6px 12px;
   cursor: pointer;
   transition: all 0.2s ease;
   user-select: none;
   white-space: nowrap;
-  width: 100%;
 }
 
 .mini-grid-btn:hover {
@@ -2341,32 +2328,10 @@ thead th.modern-routing-top-left-cell[data-v-3bfabf52] {
 /* Hidden / Greyed Out State */
 .mini-grid-btn.is-hidden {
   opacity: 0.35 !important;
-  background: #11111d !important;
+  background: #0d0b18 !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
   color: #64748b !important;
   text-decoration: line-through !important;
-}
-
-.mini-grid-cell {
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  background: rgba(139, 92, 246, 0.25);
-  border: 1px solid rgba(139, 92, 246, 0.35);
-  margin: 0 auto;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.mini-grid-cell:hover {
-  border-color: #8b5cf6;
-  box-shadow: 0 0 6px rgba(139, 92, 246, 0.5);
-}
-
-.mini-grid-cell.is-hidden {
-  opacity: 0.25 !important;
-  background: #11111d !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 
