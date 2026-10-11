@@ -107,6 +107,16 @@
       });
     }
 
+    // Document-level event delegation for routing gear button
+    document.addEventListener('click', (e) => {
+      const gearBtn = e.target.closest('#modern-routing-gear-btn, .modern-routing-gear-btn');
+      if (gearBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        openRoutingCustomizeModal();
+      }
+    }, true);
+
     // 5. Setup Routing Table Crosshair & Observer
     setupRoutingTableObserver();
 
@@ -2121,11 +2131,10 @@
 
   function openRoutingCustomizeModal() {
     const routingTable = document.querySelector('table[data-v-3bfabf52]');
-    if (!routingTable) return;
 
-    // Extract current input channels from subHeader
-    const topRow = routingTable.querySelector('thead tr:first-child');
-    const subHeaderRow = routingTable.querySelector('thead tr.subHeader');
+    // Extract current input channels from subHeader or fallback to defaults
+    const topRow = routingTable ? routingTable.querySelector('thead tr:first-child') : null;
+    const subHeaderRow = routingTable ? routingTable.querySelector('thead tr.subHeader') : null;
     const cornerCell1 = topRow ? topRow.children[0] : null;
     const cornerCell2 = subHeaderRow ? subHeaderRow.children[0] : null;
 
@@ -2135,11 +2144,14 @@
       const txt = el.textContent.trim();
       return txt !== '';
     }) : [];
-    const inputChannels = inputThs.map(th => th.textContent.trim()).filter(Boolean);
+    let inputChannels = inputThs.map(th => th.textContent.trim()).filter(Boolean);
+    if (inputChannels.length === 0) {
+      inputChannels = ['Mic', 'Line In', 'Console', 'System', 'Game', 'Chat', 'Sample', 'Music'];
+    }
 
-    // Extract current output channels from tbody rows
-    const tbodyRows = Array.from(routingTable.querySelectorAll('tbody tr'));
-    const outputChannels = [];
+    // Extract current output channels from tbody rows or fallback to defaults
+    const tbodyRows = routingTable ? Array.from(routingTable.querySelectorAll('tbody tr')) : [];
+    let outputChannels = [];
     tbodyRows.forEach(tr => {
       const rh = tr.querySelector('th:not(.rotated)');
       if (rh) {
@@ -2149,6 +2161,9 @@
         }
       }
     });
+    if (outputChannels.length === 0) {
+      outputChannels = ['Headphones', 'Broadcast Mix', 'Line Out', 'Chat Mic', 'Sampler'];
+    }
 
     let { hiddenInputs, hiddenOutputs } = getRoutingVisibilitySettings();
 
@@ -2174,54 +2189,36 @@
             </div>
             <button class="modern-modal-close-btn" id="mini-routing-close-x" type="button">&times;</button>
           </div>
-          <p class="mini-routing-hint">Click any column (input) or row (output) to toggle visibility in the routing matrix. Hidden items are greyed out.</p>
+          <p class="mini-routing-hint">Click any input channel title (top) or output channel title (left) to toggle visibility in the routing matrix. Hidden channels are greyed out.</p>
 
-          <div class="mini-routing-container">
-            <table class="mini-routing-grid">
-              <thead>
-                <tr>
-                  <th rowspan="2" class="mini-grid-corner-cell">
-                    <span class="mini-grid-corner-label">GRID</span>
-                  </th>
-                  <th colspan="${inputChannels.length}" class="mini-grid-top-title">INPUT CHANNELS</th>
-                </tr>
-                <tr class="mini-grid-subheader-row">
-                  ${inputChannels.map(inp => {
-                    const isHidden = hiddenInputs.includes(inp);
-                    return `
-                      <th>
-                        <button type="button" class="mini-grid-btn mini-grid-col-btn ${isHidden ? 'is-hidden' : 'is-visible'}" data-channel="${inp}">
-                          <span>${inp}</span>
-                        </button>
-                      </th>
-                    `;
-                  }).join('')}
-                </tr>
-              </thead>
-              <tbody>
+          <div class="mini-routing-sections">
+            <div class="mini-routing-group">
+              <div class="mini-routing-group-title">INPUT CHANNELS (COLUMNS)</div>
+              <div class="mini-routing-buttons-row">
+                ${inputChannels.map(inp => {
+                  const isHidden = hiddenInputs.includes(inp);
+                  return `
+                    <button type="button" class="mini-grid-btn mini-grid-col-btn ${isHidden ? 'is-hidden' : 'is-visible'}" data-channel="${inp}">
+                      <span>${inp}</span>
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <div class="mini-routing-group">
+              <div class="mini-routing-group-title">OUTPUT CHANNELS (ROWS)</div>
+              <div class="mini-routing-buttons-row">
                 ${outputChannels.map(outp => {
                   const isOutHidden = hiddenOutputs.includes(outp);
                   return `
-                    <tr>
-                      <th>
-                        <button type="button" class="mini-grid-btn mini-grid-row-btn ${isOutHidden ? 'is-hidden' : 'is-visible'}" data-channel="${outp}">
-                          <span>${outp}</span>
-                        </button>
-                      </th>
-                      ${inputChannels.map(inp => {
-                        const isInpHidden = hiddenInputs.includes(inp);
-                        const isCellHidden = isInpHidden || isOutHidden;
-                        return `
-                          <td>
-                            <div class="mini-grid-cell ${isCellHidden ? 'is-hidden' : 'is-visible'}" data-input="${inp}" data-output="${outp}"></div>
-                          </td>
-                        `;
-                      }).join('')}
-                    </tr>
+                    <button type="button" class="mini-grid-btn mini-grid-row-btn ${isOutHidden ? 'is-hidden' : 'is-visible'}" data-channel="${outp}">
+                      <span>${outp}</span>
+                    </button>
                   `;
                 }).join('')}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
 
           <div class="modern-modal-footer">
@@ -2241,31 +2238,6 @@
             hiddenInputs = hiddenInputs.filter(x => x !== channel);
           } else {
             hiddenInputs.push(channel);
-          }
-          saveRoutingVisibilitySettings(hiddenInputs, hiddenOutputs);
-          applyRoutingVisibility(routingTable);
-          renderModalContent();
-        });
-      });
-
-      const gridCells = modalOverlay.querySelectorAll('.mini-grid-cell');
-      gridCells.forEach(cell => {
-        cell.addEventListener('click', (e) => {
-          e.preventDefault();
-          const inp = cell.getAttribute('data-input');
-          const outp = cell.getAttribute('data-output');
-          const isInpHidden = hiddenInputs.includes(inp);
-          const isOutHidden = hiddenOutputs.includes(outp);
-
-          if (isInpHidden && isOutHidden) {
-            hiddenInputs = hiddenInputs.filter(x => x !== inp);
-            hiddenOutputs = hiddenOutputs.filter(x => x !== outp);
-          } else if (isInpHidden) {
-            hiddenInputs = hiddenInputs.filter(x => x !== inp);
-          } else if (isOutHidden) {
-            hiddenOutputs = hiddenOutputs.filter(x => x !== outp);
-          } else {
-            hiddenInputs.push(inp);
           }
           saveRoutingVisibilitySettings(hiddenInputs, hiddenOutputs);
           applyRoutingVisibility(routingTable);
