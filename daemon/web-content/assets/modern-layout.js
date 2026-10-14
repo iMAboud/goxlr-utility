@@ -142,6 +142,9 @@
 
     // 13. Setup Lighting > Alerts Sub-tab & Hardware Activity Engine
     setupLightingAlertsSystem();
+
+    // 14. Modern App Updater & Startup Check
+    setupModernUpdater();
   }
 
   function setupCoughCenteringObserver() {
@@ -1218,6 +1221,195 @@
     removeFooter();
   }
 
+  // ==========================================================================
+  // Modern App Updater Overlay & Startup Auto-Update Engine
+  // ==========================================================================
+
+  let updatePollInterval = null;
+
+  function ensureUpdaterOverlay() {
+    let overlay = document.getElementById('modern-updater-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'modern-updater-overlay';
+      overlay.className = 'modern-updater-overlay';
+      overlay.innerHTML = `
+        <div class="modern-updater-modal">
+          <div class="modern-updater-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </div>
+          <div class="modern-updater-label" id="modern-updater-label">Updating to v...</div>
+          <div class="modern-updater-pill-track">
+            <div class="modern-updater-pill-bar" id="modern-updater-bar"></div>
+          </div>
+          <div class="modern-updater-subtext" id="modern-updater-subtext">Preparing update...</div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    }
+    return overlay;
+  }
+
+  function showUpdaterOverlay(version, initialSubtext = 'Downloading update...') {
+    const overlay = ensureUpdaterOverlay();
+    const label = overlay.querySelector('#modern-updater-label');
+    const subtext = overlay.querySelector('#modern-updater-subtext');
+    const bar = overlay.querySelector('#modern-updater-bar');
+
+    const cleanVer = (version || '').startsWith('v') ? version : ('v' + (version || ''));
+    if (label) label.textContent = `Updating to ${cleanVer}`;
+    if (subtext) subtext.textContent = initialSubtext;
+    if (bar) bar.style.width = '0%';
+
+    overlay.classList.add('active');
+  }
+
+  function setUpdaterProgress(pct, text) {
+    const overlay = ensureUpdaterOverlay();
+    const bar = overlay.querySelector('#modern-updater-bar');
+    const subtext = overlay.querySelector('#modern-updater-subtext');
+    if (bar) bar.style.width = `${Math.min(Math.max(pct, 0), 100)}%`;
+    if (subtext && text) subtext.textContent = text;
+  }
+
+  async function startAppUpdate(downloadUrl, targetVersion) {
+    showUpdaterOverlay(targetVersion, 'Starting download...');
+
+    try {
+      const resp = await fetch('/api/update/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          download_url: downloadUrl || null,
+          version: targetVersion || null,
+        }),
+      });
+
+      if (!resp.ok) {
+        throw new Error(`Failed to initiate update (HTTP ${resp.status})`);
+      }
+    } catch (e) {
+      setUpdaterProgress(0, `Update error: ${e.message}`);
+      return;
+    }
+
+    if (updatePollInterval) clearInterval(updatePollInterval);
+    updatePollInterval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/update/status?_=' + Date.now(), { cache: 'no-store' });
+        if (res.ok) {
+          const state = await res.json();
+          if (state.status === 'downloading') {
+            const pct = Math.round(state.progress || 0);
+            setUpdaterProgress(pct, `Downloading update... ${pct}%`);
+          } else if (state.status === 'installing') {
+            setUpdaterProgress(100, 'Installing update and relaunching...');
+          } else if (state.status === 'error') {
+            clearInterval(updatePollInterval);
+            setUpdaterProgress(0, `Update failed: ${state.error || 'Unknown error'}`);
+          }
+        }
+      } catch (err) {
+        setUpdaterProgress(100, 'Relaunching GoXLR Utility...');
+      }
+    }, 120);
+  }
+
+  function setupModernUpdater() {
+    ensureUpdaterOverlay();
+
+    // Check once on startup
+    setTimeout(async () => {
+      try {
+        const statusRes = await fetch('/api/update/status?_=' + Date.now(), { cache: 'no-store' });
+        if (statusRes.ok) {
+          const state = await statusRes.json();
+          if (state.status === 'downloading' || state.status === 'installing') {
+            startAppUpdate(state.download_url, state.latest_version);
+            return;
+          }
+          if (state.status === 'available') {
+            startAppUpdate(state.download_url, state.latest_version);
+            return;
+          }
+        }
+
+        const checkRes = await fetch('/api/update/check', { method: 'POST' });
+        if (checkRes.ok) {
+          const checkState = await checkRes.json();
+          if (checkState.status === 'available') {
+            startAppUpdate(checkState.download_url, checkState.latest_version);
+          }
+        }
+      } catch (e) {}
+    }, 1500);
+  }
+
+  function initSettingsUpdaterCard(paneUtility, currentVer) {
+    const card = paneUtility.querySelector('#modern-updater-settings-card');
+    if (!card) return;
+    const statusEl = card.querySelector('#modern-updater-card-status');
+    const actionsEl = card.querySelector('#modern-updater-actions');
+    const checkBtn = card.querySelector('#modern-btn-check-update');
+
+    async function refreshStatus() {
+      try {
+        const res = await fetch('/api/update/status?_=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) return;
+        const state = await res.json();
+        if (state.status === 'available') {
+          if (statusEl) statusEl.textContent = `Update available: ${state.latest_version}`;
+          if (actionsEl) {
+            actionsEl.innerHTML = `
+              <button class="modern-updater-btn update-accent" id="modern-btn-install-update">
+                Update to ${state.latest_version}
+              </button>
+            `;
+            const installBtn = actionsEl.querySelector('#modern-btn-install-update');
+            if (installBtn) {
+              installBtn.addEventListener('click', () => {
+                startAppUpdate(state.download_url, state.latest_version);
+              });
+            }
+          }
+        } else if (state.status === 'downloading' || state.status === 'installing') {
+          if (statusEl) statusEl.textContent = `Updating to ${state.latest_version}...`;
+        } else if (state.status === 'error') {
+          if (statusEl) statusEl.textContent = state.error || 'Check failed';
+        } else {
+          if (statusEl) statusEl.textContent = `GoXLR Utility is up to date (v${currentVer})`;
+        }
+      } catch (e) {
+        if (statusEl) statusEl.textContent = `GoXLR Utility v${currentVer}`;
+      }
+    }
+
+    refreshStatus();
+
+    if (checkBtn) {
+      checkBtn.addEventListener('click', async () => {
+        checkBtn.disabled = true;
+        if (statusEl) statusEl.textContent = 'Checking GitHub releases...';
+        try {
+          const res = await fetch('/api/update/check', { method: 'POST' });
+          if (res.ok) {
+            await refreshStatus();
+          } else {
+            if (statusEl) statusEl.textContent = 'Failed to check for updates';
+          }
+        } catch (e) {
+          if (statusEl) statusEl.textContent = 'Error checking for updates';
+        } finally {
+          checkBtn.disabled = false;
+        }
+      });
+    }
+  }
+
   function setupTabTracker() {
     document.addEventListener('click', (e) => {
       const tabBtn = e.target.closest('.tab button');
@@ -1468,8 +1660,22 @@
     if (paneUtility) {
       const config = (window.c && window.c.getConfig && window.c.getConfig()) || {};
       const isWindowSizeSaved = config.save_window_size ?? (localStorage.getItem('goxlr_save_window_size') === 'true');
+      const currentVer = (window.c && window.c.getVersion && window.c.getVersion()) || '1.3.28';
 
       paneUtility.innerHTML = `
+        <div class="modern-updater-settings-card" id="modern-updater-settings-card">
+          <div class="modern-updater-info">
+            <div class="modern-updater-title-row">
+              <span class="modern-updater-card-title">GoXLR Updates</span>
+              <span class="modern-updater-tag" id="modern-updater-cur-tag">v${currentVer}</span>
+            </div>
+            <div class="modern-updater-card-status" id="modern-updater-card-status">Checking status...</div>
+          </div>
+          <div class="modern-updater-actions" id="modern-updater-actions">
+            <button class="modern-updater-btn" id="modern-btn-check-update">Check for Updates</button>
+          </div>
+        </div>
+
         <div class="modern-settings-list">
           <div class="modern-setting-item">
             <div class="modern-setting-info">
@@ -1576,6 +1782,9 @@
           enforceDefaultWindowSize();
         }
       });
+
+      // Wire updater card
+      initSettingsUpdaterCard(paneUtility, currentVer);
     }
 
     // 2. Device Settings
@@ -1818,36 +2027,39 @@
   }
 
   function setupVisualizerHeightObserver() {
-    function align() {
-      const routingCard = document.querySelector('.modern-top-routing div:has(> table)') ||
-                          document.querySelector('div:has(> table[data-v-3bfabf52])');
+    const FIXED_VISUALIZER_HEIGHT = 228;
+    function enforceFixedSize() {
       const vis = document.getElementById('goxlr-visualiser');
       const svg = vis ? vis.querySelector('svg') : null;
-      if (routingCard && vis) {
-        const h = Math.round(routingCard.getBoundingClientRect().height);
-        if (h > 50) {
-          [vis, svg].forEach(el => {
-            if (!el) return;
-            el.style.setProperty('height', `${h}px`, 'important');
-            el.style.setProperty('min-height', `${h}px`, 'important');
-            el.style.setProperty('max-height', `${h}px`, 'important');
-            el.style.setProperty('width', 'auto', 'important');
-          });
-          if (vis.parentElement) {
-            vis.parentElement.style.setProperty('height', `${h}px`, 'important');
-            vis.parentElement.style.setProperty('min-height', `${h}px`, 'important');
-            vis.parentElement.style.setProperty('max-height', `${h}px`, 'important');
-          }
+      if (vis) {
+        vis.style.setProperty('height', `${FIXED_VISUALIZER_HEIGHT}px`, 'important');
+        vis.style.setProperty('min-height', `${FIXED_VISUALIZER_HEIGHT}px`, 'important');
+        vis.style.setProperty('max-height', `${FIXED_VISUALIZER_HEIGHT}px`, 'important');
+        vis.style.setProperty('width', 'auto', 'important');
+        vis.style.setProperty('flex-shrink', '0', 'important');
+        if (svg) {
+          svg.style.setProperty('height', `${FIXED_VISUALIZER_HEIGHT}px`, 'important');
+          svg.style.setProperty('min-height', `${FIXED_VISUALIZER_HEIGHT}px`, 'important');
+          svg.style.setProperty('max-height', `${FIXED_VISUALIZER_HEIGHT}px`, 'important');
+          svg.style.setProperty('width', 'auto', 'important');
+          svg.style.setProperty('flex-shrink', '0', 'important');
+        }
+        if (vis.parentElement) {
+          vis.parentElement.style.setProperty('height', `${FIXED_VISUALIZER_HEIGHT}px`, 'important');
+          vis.parentElement.style.setProperty('min-height', `${FIXED_VISUALIZER_HEIGHT}px`, 'important');
+          vis.parentElement.style.setProperty('max-height', `${FIXED_VISUALIZER_HEIGHT}px`, 'important');
+          vis.parentElement.style.setProperty('width', 'auto', 'important');
+          vis.parentElement.style.setProperty('flex-shrink', '0', 'important');
         }
       }
     }
-    const obs = new MutationObserver(align);
+    const obs = new MutationObserver(enforceFixedSize);
     obs.observe(document.body, { childList: true, subtree: true });
-    window.addEventListener('resize', align);
-    align();
-    setTimeout(align, 200);
-    setTimeout(align, 600);
-    setTimeout(align, 1500);
+    window.addEventListener('resize', enforceFixedSize);
+    enforceFixedSize();
+    setTimeout(enforceFixedSize, 200);
+    setTimeout(enforceFixedSize, 600);
+    setTimeout(enforceFixedSize, 1500);
   }
 
   // Hide Old Mic Profiles Panel from body

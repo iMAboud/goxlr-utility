@@ -28,19 +28,25 @@ lazy_static! {
 }
 
 pub fn perform_platform_preflight() -> Result<()> {
-    if !locate_goxlr_driver() {
+    let driver_found = locate_goxlr_driver();
+    log::info!("Preflight driver found: {}", driver_found);
+    if !driver_found {
         error!("Driver not found, Failing Preflight.");
         bail!("The GoXLR Driver was not found, please install it and try again.");
     }
 
-    if get_official_app_count() > 0 {
+    let official_count = get_official_app_count();
+    log::info!("Preflight official count: {}", official_count);
+    if official_count > 0 {
         error!("Detected Official GoXLR Application Running, Failing Preflight.");
         bail!(
             "The official GoXLR Application is currently running, Please close it before running the Utility"
         );
     }
 
-    if get_utility_count() > 1 {
+    let util_count = get_utility_count();
+    log::info!("Preflight utility count: {}", util_count);
+    if util_count > 1 {
         error!("Daemon Process already running, Failing Preflight");
         bail!("The GoXLR Utility is already running, please stop it and try again.");
     }
@@ -218,23 +224,28 @@ fn get_startup_dir() -> Option<PathBuf> {
 }
 
 fn locate_goxlr_driver() -> bool {
-    let regpath = "CLSID\\{024D0372-641F-4B7B-8140-F4DFE458C982}\\InprocServer32\\";
+    let regpaths = [
+        r"CLSID\{024D0372-641F-4B7B-8140-F4DFE458C982}\InprocServer32",
+        r"CLSID\{024D0372-641F-4B7B-8140-F4DFE458C982}\InprocServer32\",
+    ];
     let classes_root = RegKey::predef(HKEY_CLASSES_ROOT);
-    if let Ok(folders) = classes_root.open_subkey(regpath) {
-        // Name is blank because we need the default key
-        if let Ok(api) = folders.get_value::<String, &str>("") {
-            // Check the file exists..
-            if PathBuf::from(&api).exists() {
-                return true;
+    for regpath in regpaths {
+        if let Ok(folders) = classes_root.open_subkey(regpath) {
+            if let Ok(api) = folders.get_value::<String, &str>("") {
+                if PathBuf::from(&api).exists() {
+                    return true;
+                }
             }
         }
     }
-    // If we get here, we didn't find it, return a default and hope for the best!
-    let path = String::from(
-        "C:/Program Files/TC-HELICON/GoXLR_Audio_Driver/W10_x64/goxlr_audioapi_x64.dll",
-    );
-    if PathBuf::from(&path).exists() {
-        return true;
+
+    for path in [
+        r"C:\Program Files\TC-Helicon\GoXLR_Audio_Driver\x64\goxlr_audioapi_x64.dll",
+        r"C:\Program Files\TC-HELICON\GoXLR_Audio_Driver\W10_x64\goxlr_audioapi_x64.dll",
+    ] {
+        if PathBuf::from(path).exists() {
+            return true;
+        }
     }
     false
 }

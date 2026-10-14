@@ -140,6 +140,12 @@ impl SettingsHandle {
             settings.show_tray_icon = Some(true);
         }
 
+        if settings.activate.is_none() {
+            if let Some(app) = crate::platform::get_ui_app_path() {
+                settings.activate = Some(format!("\"{}\"", app.to_string_lossy()));
+            }
+        }
+
         if settings.tts_enabled.is_none() {
             settings.tts_enabled = Some(false);
         }

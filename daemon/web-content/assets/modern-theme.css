@@ -299,6 +299,7 @@ html, body {
   display: flex !important;
   justify-content: center !important;
   align-items: center !important;
+  flex-shrink: 0 !important;
 }
 #goxlr-visualiser svg {
   height: 228px !important;
@@ -308,6 +309,7 @@ html, body {
   max-width: none !important;
   aspect-ratio: auto !important;
   object-fit: contain !important;
+  flex-shrink: 0 !important;
   filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.7)) !important;
 }
 
@@ -2544,6 +2546,208 @@ div.version,
   color: var(--accent-purple-light, #c084fc) !important;
   padding: 6px 10px !important;
 }
+
+/* ==========================================================================
+   Modern App Updater Overlay & Utility Settings Card
+   ========================================================================== */
+
+.modern-updater-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 6, 16, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modern-updater-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modern-updater-modal {
+  position: relative;
+  background: rgba(18, 14, 30, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7), 0 0 50px rgba(121, 40, 202, 0.25);
+  border-radius: 22px;
+  padding: 32px 36px;
+  width: 90%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transform: scale(0.94);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modern-updater-overlay.active .modern-updater-modal {
+  transform: scale(1);
+}
+
+.modern-updater-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(121, 40, 202, 0.35) 0%, rgba(255, 0, 128, 0.25) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  box-shadow: 0 0 24px rgba(121, 40, 202, 0.4);
+}
+
+.modern-updater-icon svg {
+  width: 24px;
+  height: 24px;
+  color: #fff;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.5));
+}
+
+.modern-updater-label {
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: #ffffff;
+  margin-bottom: 20px;
+}
+
+.modern-updater-pill-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+  margin-bottom: 12px;
+}
+
+.modern-updater-pill-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #7928ca 0%, #ff0080 50%, #00dfd8 100%);
+  box-shadow: 0 0 16px rgba(255, 0, 128, 0.65);
+  transition: width 0.18s ease-out;
+}
+
+.modern-updater-subtext {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.1px;
+}
+
+/* Settings card at top of Utility Settings */
+.modern-updater-settings-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.modern-updater-settings-card:hover {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.modern-updater-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.modern-updater-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modern-updater-card-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.modern-updater-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(121, 40, 202, 0.2);
+  color: #d8b4fe;
+  border: 1px solid rgba(121, 40, 202, 0.4);
+}
+
+.modern-updater-card-status {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.modern-updater-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modern-updater-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modern-updater-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+.modern-updater-btn:active {
+  transform: translateY(0);
+}
+
+.modern-updater-btn.update-accent {
+  background: linear-gradient(135deg, #7928ca 0%, #ff0080 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 16px rgba(255, 0, 128, 0.4);
+}
+
+.modern-updater-btn.update-accent:hover {
+  box-shadow: 0 0 22px rgba(255, 0, 128, 0.65);
+  transform: translateY(-1px) scale(1.02);
+}
+
+.modern-updater-btn:disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 
 
 

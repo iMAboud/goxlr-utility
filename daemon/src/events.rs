@@ -177,15 +177,22 @@ async fn trigger_activate(state: &DaemonState) {
     let mut launched = false;
     if let Some(exec) = activate {
         use windows_args;
+        #[cfg(windows)]
+        use std::os::windows::process::CommandExt;
+
         let exec = exec.replace("%URL%", &url);
         let mut args = windows_args::Args::parse_cmd(&exec);
         if let Some(command) = args.next() {
-            let result = Command::new(command)
-                .current_dir(&tmp_dir)
+            let mut cmd = Command::new(command);
+            cmd.current_dir(&tmp_dir)
                 .args(args)
                 .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn();
+                .stderr(Stdio::null());
+
+            #[cfg(windows)]
+            cmd.creation_flags(0x00000008 | 0x00000200);
+
+            let result = cmd.spawn();
 
             if result.is_ok() {
                 launched = true;
@@ -197,11 +204,18 @@ async fn trigger_activate(state: &DaemonState) {
 
     if !launched {
         if let Some(app_path) = crate::platform::get_ui_app_path() {
-            let result = Command::new(app_path)
-                .current_dir(&tmp_dir)
+            #[cfg(windows)]
+            use std::os::windows::process::CommandExt;
+
+            let mut cmd = Command::new(app_path);
+            cmd.current_dir(&tmp_dir)
                 .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn();
+                .stderr(Stdio::null());
+
+            #[cfg(windows)]
+            cmd.creation_flags(0x00000008 | 0x00000200);
+
+            let result = cmd.spawn();
 
             if let Err(error) = result {
                 warn!("Error Executing UI App: {:?}", error);

@@ -90,6 +90,9 @@ pub async fn spawn_http_server(
             .service(get_toast_settings)
             .service(set_toast_settings)
             .service(trigger_toast_endpoint)
+            .service(get_update_status)
+            .service(check_update_endpoint)
+            .service(install_update_endpoint)
             .service(get_sample)
             .service(get_scribble)
             .service(get_path)
@@ -121,6 +124,7 @@ pub async fn spawn_http_server(
     let _ = handle_tx.send(Ok(Some(server.handle())));
 
     crate::servers::toast_overlay::init_toast_system();
+    crate::servers::updater::init_startup_check();
     tokio::spawn(async move {
         let mut last_toast = std::time::Instant::now() - std::time::Duration::from_secs(10);
         loop {
@@ -242,6 +246,7 @@ async fn websocket(
 
     // Spawn the handler (this is now where we do stuff)
     actix_web::rt::spawn(async move {
+        crate::servers::updater::inc_ui_client();
         let mut msg_stream = msg_stream.aggregate_continuations();
 
         let close_reason = loop {
@@ -379,6 +384,7 @@ async fn websocket(
         };
 
         let _ = session.close(close_reason).await;
+        crate::servers::updater::dec_ui_client();
     });
 
     Ok(response)
@@ -460,6 +466,38 @@ async fn trigger_toast_endpoint(
 ) -> HttpResponse {
     crate::servers::toast_overlay::trigger_toast(payload.into_inner());
     HttpResponse::Ok().finish()
+}
+
+#[get("/api/update/status")]
+async fn get_update_status() -> HttpResponse {
+    let state = crate::servers::updater::get_update_state().await;
+    HttpResponse::Ok()
+        .insert_header(("Cache-Control", "no-store, no-cache, must-revalidate"))
+        .json(&state)
+}
+
+#[post("/api/update/check")]
+async fn check_update_endpoint() -> HttpResponse {
+    match crate::servers::updater::check_for_updates().await {
+        Ok(state) => HttpResponse::Ok().json(&state),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "status": "error",
+            "error": e.to_string()
+        })),
+    }
+}
+
+#[post("/api/update/install")]
+async fn install_update_endpoint(
+    payload: web::Json<Option<crate::servers::updater::InstallRequest>>,
+) -> HttpResponse {
+    match crate::servers::updater::start_update(payload.into_inner()).await {
+        Ok(state) => HttpResponse::Ok().json(&state),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "status": "error",
+            "error": e.to_string()
+        })),
+    }
 }
 
 #[get("/api/path")]

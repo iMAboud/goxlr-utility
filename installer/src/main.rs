@@ -175,6 +175,10 @@ fn main() {
         perform_uninstall();
         return;
     }
+    if args.iter().any(|arg| arg == "--silent" || arg == "--update" || arg == "/S") {
+        run_installation(0, true, true, false);
+        return;
+    }
 
     unsafe {
         let instance = GetModuleHandleW(PCWSTR::null()).unwrap_or_default();
@@ -934,21 +938,22 @@ unsafe fn draw_ui(_hwnd: HWND, hdc: HDC) {
 
     // Footer Status Text (NO settings gear)
     SelectObject(hdc, font_status.into());
+    let pkg_ver = env!("CARGO_PKG_VERSION");
     let (status_str, status_color) = match s.state {
         InstallState::Ready => (
-            format!("v1.2.4   |   Ready to install"),
+            format!("v{}   |   Ready to install", pkg_ver),
             COLORREF(0x009E7D8A),
         ),
         InstallState::Installing => (
-            format!("v1.2.4   |   {} ({}%)", s.status_text, s.progress),
+            format!("v{}   |   {} ({}%)", pkg_ver, s.status_text, s.progress),
             COLORREF(0x00FC84C0),
         ),
         InstallState::Completed => (
-            format!("v1.2.4   |   Installation complete! Launching..."),
+            format!("v{}   |   Installation complete! Launching...", pkg_ver),
             COLORREF(0x005EC522),
         ),
         InstallState::Failed => (
-            format!("v1.2.4   |   Installation failed. Please run as Administrator."),
+            format!("v{}   |   Installation failed. Please run as Administrator.", pkg_ver),
             COLORREF(0x004444EF),
         ),
     };
@@ -1297,6 +1302,24 @@ fn set_progress(hwnd_u: usize, target: u32, status: &str) {
                 let mut s = GLOBAL_STATE.lock().unwrap();
                 s.progress = current + i;
             }
+            if hwnd_u != 0 {
+                unsafe {
+                    let _ = PostMessageW(
+                        Some(HWND(hwnd_u as *mut _)),
+                        WM_INSTALL_PROGRESS,
+                        WPARAM(0),
+                        LPARAM(0),
+                    );
+                }
+                thread::sleep(Duration::from_millis(25));
+            }
+        }
+    } else {
+        {
+            let mut s = GLOBAL_STATE.lock().unwrap();
+            s.progress = target;
+        }
+        if hwnd_u != 0 {
             unsafe {
                 let _ = PostMessageW(
                     Some(HWND(hwnd_u as *mut _)),
@@ -1305,20 +1328,6 @@ fn set_progress(hwnd_u: usize, target: u32, status: &str) {
                     LPARAM(0),
                 );
             }
-            thread::sleep(Duration::from_millis(25));
-        }
-    } else {
-        {
-            let mut s = GLOBAL_STATE.lock().unwrap();
-            s.progress = target;
-        }
-        unsafe {
-            let _ = PostMessageW(
-                Some(HWND(hwnd_u as *mut _)),
-                WM_INSTALL_PROGRESS,
-                WPARAM(0),
-                LPARAM(0),
-            );
         }
     }
 }
@@ -1349,14 +1358,18 @@ fn run_installation(hwnd_u: usize, autostart: bool, use_app: bool, install_drive
     let driver_dir = PathBuf::from(&program_files).join(r"TC-Helicon\GoXLR_Audio_Driver\x64");
 
     if let Err(_) = fs::create_dir_all(&app_dir) {
-        unsafe {
-            let _ = PostMessageW(Some(hwnd), WM_INSTALL_FAILED, WPARAM(0), LPARAM(0));
+        if hwnd_u != 0 {
+            unsafe {
+                let _ = PostMessageW(Some(hwnd), WM_INSTALL_FAILED, WPARAM(0), LPARAM(0));
+            }
         }
         return;
     }
     if let Err(_) = fs::create_dir_all(&driver_dir) {
-        unsafe {
-            let _ = PostMessageW(Some(hwnd), WM_INSTALL_FAILED, WPARAM(0), LPARAM(0));
+        if hwnd_u != 0 {
+            unsafe {
+                let _ = PostMessageW(Some(hwnd), WM_INSTALL_FAILED, WPARAM(0), LPARAM(0));
+            }
         }
         return;
     }
@@ -1434,11 +1447,22 @@ fn run_installation(hwnd_u: usize, autostart: bool, use_app: bool, install_drive
     set_progress(hwnd_u, 90, "Writing installation metadata...");
     setup_registry(&app_dir, autostart, use_app);
 
+    if let Ok(cur_exe) = std::env::current_exe() {
+        let dest = app_dir.join("GoXLR.exe");
+        if cur_exe != dest {
+            let _ = fs::copy(&cur_exe, &dest);
+        }
+    }
+
     // Done!
     set_progress(hwnd_u, 100, "Installation complete!");
-    thread::sleep(Duration::from_millis(300));
-    unsafe {
-        let _ = PostMessageW(Some(hwnd), WM_INSTALL_FINISHED, WPARAM(0), LPARAM(0));
+    if hwnd_u != 0 {
+        thread::sleep(Duration::from_millis(300));
+        unsafe {
+            let _ = PostMessageW(Some(hwnd), WM_INSTALL_FINISHED, WPARAM(0), LPARAM(0));
+        }
+    } else {
+        launch_and_exit(true);
     }
 }
 
@@ -1590,7 +1614,7 @@ fn setup_registry(app_dir: &Path, autostart: bool, use_app: bool) {
 
         let _ = key.set_value("DisplayName", &"GoXLR");
         let _ = key.set_value("DisplayIcon", &icon_path.to_string_lossy().to_string());
-        let _ = key.set_value("DisplayVersion", &"1.2.4");
+        let _ = key.set_value("DisplayVersion", &env!("CARGO_PKG_VERSION"));
         let _ = key.set_value("Publisher", &"iMAboud");
         let _ = key.set_value("UninstallString", &uninst_cmd);
         let _ = key.set_value("QuietUninstallString", &uninst_cmd);
@@ -1608,14 +1632,16 @@ fn launch_and_exit(use_app: bool) {
     let launcher_exe = app_dir.join("goxlr-launcher.exe");
     let daemon_exe = app_dir.join("goxlr-daemon.exe");
 
-    // Launch daemon via explorer / de-elevate or direct
-    if launcher_exe.exists() {
-        let _ = Command::new("explorer.exe").arg(&launcher_exe).spawn();
-    } else if daemon_exe.exists() {
+    if daemon_exe.exists() {
         let mut cmd = Command::new(&daemon_exe);
         if use_app {
             cmd.arg("--start-ui");
         }
+        cmd.creation_flags(0x00000008 | 0x00000200); // DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        let _ = cmd.spawn();
+    } else if launcher_exe.exists() {
+        let mut cmd = Command::new(&launcher_exe);
+        cmd.creation_flags(0x00000008 | 0x00000200);
         let _ = cmd.spawn();
     }
 }

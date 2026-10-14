@@ -94,6 +94,7 @@ async fn main() -> Result<()> {
     // If running the utility has an error, make sure log level is debug, and propagate the
     // error up to the user on Windows.
     if let Err(e) = run_utility().await {
+        error!("Error running utility: {:#}", e);
         let args: Cli = Cli::parse();
         let settings = SettingsHandle::load(args.config).await?;
 

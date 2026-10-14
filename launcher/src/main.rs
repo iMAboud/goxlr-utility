@@ -129,6 +129,8 @@ fn is_daemon_running() -> bool {
 
 fn launch_daemon() -> Result<()> {
     use std::process::{Command, Stdio, exit};
+    #[cfg(windows)]
+    use std::os::windows::process::CommandExt;
 
     if let Some(path) = locate_daemon_binary() {
         let mut command = Command::new(&path);
@@ -136,6 +138,9 @@ fn launch_daemon() -> Result<()> {
         command.stdin(Stdio::null());
         command.stdout(Stdio::null());
         command.stderr(Stdio::null());
+
+        #[cfg(windows)]
+        command.creation_flags(0x00000008 | 0x00000200);
 
         if let Some(parent) = path.parent() {
             command.current_dir(parent);
